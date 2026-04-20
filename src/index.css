@@ -34,15 +34,43 @@ ruby rt {
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
-  transition: background-color 0.3s, color 0.3s, transform 0.3s ease-out;
+  transition: color 0.26s ease-out, transform 0.32s ease-out;
+}
+
+.lyrics-viewport {
+  max-height: min(62vh, 34rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scroll-padding-block: 35%;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.4) 10%, black 18%, black 78%, rgba(0, 0, 0, 0.45) 88%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.4) 10%, black 18%, black 78%, rgba(0, 0, 0, 0.45) 88%, transparent 100%);
+  scrollbar-width: none;
+}
+
+.lyrics-viewport::-webkit-scrollbar {
+  display: none;
 }
 
 .lyrics-line.active {
   color: var(--color-accent);
-  background: var(--color-accent-bg);
-  border-radius: 0.5rem;
   font-size: 1.5rem;
   transform: scale(1.02);
+}
+
+.lyrics-line-bg {
+  position: absolute;
+  inset: 0.15rem 0;
+  border-radius: 0.5rem;
+  background: var(--color-accent-bg);
+  opacity: 0;
+  transform: scale(0.985);
+  transition: opacity 0.24s ease-out, transform 0.32s ease-out;
+}
+
+.lyrics-line-bg.active {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .lyrics-line .romaji {

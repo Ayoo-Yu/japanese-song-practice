@@ -40,8 +40,11 @@ export function SongPage() {
     }
   }, [song])
 
-  // Detect user scroll on the page
+  // Detect user scroll on the lyrics viewport
   useEffect(() => {
+    const lyricsEl = lyricsRef.current
+    if (!lyricsEl) return
+
     const onUserScroll = () => {
       userScrollingRef.current = true
       clearTimeout(scrollTimerRef.current)
@@ -49,11 +52,15 @@ export function SongPage() {
         userScrollingRef.current = false
       }, 10000)
     }
-    window.addEventListener('wheel', onUserScroll, { passive: true })
-    window.addEventListener('touchmove', onUserScroll, { passive: true })
+
+    lyricsEl.addEventListener('wheel', onUserScroll, { passive: true })
+    lyricsEl.addEventListener('touchmove', onUserScroll, { passive: true })
+    lyricsEl.addEventListener('scroll', onUserScroll, { passive: true })
+
     return () => {
-      window.removeEventListener('wheel', onUserScroll)
-      window.removeEventListener('touchmove', onUserScroll)
+      lyricsEl.removeEventListener('wheel', onUserScroll)
+      lyricsEl.removeEventListener('touchmove', onUserScroll)
+      lyricsEl.removeEventListener('scroll', onUserScroll)
     }
   }, [])
 
@@ -65,7 +72,7 @@ export function SongPage() {
     if (currentLineIndex === prevLineRef.current) return
     prevLineRef.current = currentLineIndex
     if (currentLineIndex < 0) return
-    const el = document.querySelector('.lyrics-line.active')
+    const el = lyricsRef.current?.querySelector('.lyrics-line.active')
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [currentTimeMs, isPlaying, song])
 
@@ -105,7 +112,7 @@ export function SongPage() {
   const currentLineIndex = findCurrentLine(parsedLines, currentTimeMs, calibrations)
 
   return (
-    <div className="max-w-lg mx-auto pb-8">
+    <div className="max-w-lg mx-auto pb-8 overflow-x-hidden">
       <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur-sm p-4 space-y-3">
         <SongHeader
           title={song.title}
@@ -151,7 +158,7 @@ export function SongPage() {
           onSongUpdate={setEditSong}
         />
       ) : (
-        <div className="py-2" ref={lyricsRef}>
+        <div className="lyrics-viewport py-6 overflow-x-hidden" ref={lyricsRef}>
           {lines.map((line, i) => {
             if (!line.original.trim()) {
               return <div key={i} className="h-6" />
@@ -166,23 +173,26 @@ export function SongPage() {
             return (
               <div
                 key={i}
-                className={`lyrics-line px-4 py-1.5 transition-colors duration-300 ${
+                className={`lyrics-line relative px-4 py-1.5 ${
                   isActive ? 'active' : ''
                 }`}
               >
-                <KTVLine progress={lineProgress}>
-                  {hasFurigana ? (
-                    <FuriganaText tokens={fLine.words} showFurigana={showFurigana} />
-                  ) : (
-                    <div className="text-line">{line.original}</div>
+                <div className={`lyrics-line-bg ${isActive ? 'active' : ''}`} />
+                <div className="relative z-10">
+                  <KTVLine progress={lineProgress}>
+                    {hasFurigana ? (
+                      <FuriganaText tokens={fLine.words} showFurigana={showFurigana} />
+                    ) : (
+                      <div className="text-line">{line.original}</div>
+                    )}
+                  </KTVLine>
+                  {showRomaji && line.romaji && (
+                    <div className="romaji">{line.romaji}</div>
                   )}
-                </KTVLine>
-                {showRomaji && line.romaji && (
-                  <div className="romaji">{line.romaji}</div>
-                )}
-                {showTranslation && line.translation && (
-                  <div className="translation">{line.translation}</div>
-                )}
+                  {showTranslation && line.translation && (
+                    <div className="translation">{line.translation}</div>
+                  )}
+                </div>
               </div>
             )
           })}
@@ -249,8 +259,8 @@ function getLineProgress(
 ): number {
   const { start, end } = getLineWindow(lines, lineIndex, calibration)
   if (end <= start) return currentTimeMs >= start ? 1 : 0
-  const offset = calibration ? 0 : 300
-  return Math.max(0, Math.min(1, (currentTimeMs + offset - start) / (end - start)))
+  const displayTimeMs = getDisplayTimeMs(currentTimeMs, calibration)
+  return Math.max(0, Math.min(1, (displayTimeMs - start) / (end - start)))
 }
 
 function findCurrentLine(
@@ -259,16 +269,25 @@ function findCurrentLine(
   calibrations: Record<number, { startMs: number; endMs: number }>,
 ): number {
   if (lines.length === 0) return -1
+  let currentLineIndex = -1
   for (let i = 0; i < lines.length; i++) {
-    const { start, end } = getLineWindow(lines, i, calibrations[i])
-    if (currentTimeMs < start) {
-      return i === 0 ? -1 : i - 1
+    const calibration = calibrations[i]
+    const { start } = getLineWindow(lines, i, calibration)
+    const displayTimeMs = getDisplayTimeMs(currentTimeMs, calibration, 100)
+    if (displayTimeMs < start) {
+      break
     }
-    if (currentTimeMs < end || i === lines.length - 1) {
-      return i
-    }
+    currentLineIndex = i
   }
-  return lines.length - 1
+  return currentLineIndex
+}
+
+function getDisplayTimeMs(
+  currentTimeMs: number,
+  calibration?: { startMs: number; endMs: number },
+  extraLeadMs = 0,
+): number {
+  return currentTimeMs + (calibration ? 0 : 300) + extraLeadMs
 }
 
 function getLineWindow(
