@@ -189,6 +189,42 @@ export function neteaseQRLogin(): Plugin {
           return
         }
 
+        if (url.pathname === '/song-url') {
+          const id = url.searchParams.get('id')
+          if (!id) {
+            res.statusCode = 400
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'Missing id' }))
+            return
+          }
+
+          const envCookie = getEnvCookie()
+          if (envCookie) {
+            cookieJar = cookieJar
+              .split('; ')
+              .filter((s) => !s.startsWith('MUSIC_U='))
+              .join('; ')
+            cookieJar = cookieJar ? cookieJar + '; MUSIC_U=' + envCookie : 'MUSIC_U=' + envCookie
+          }
+
+          postWeapi('https://music.163.com/weapi/song/enhance/player/url/v1', {
+            ids: `[${id}]`,
+            level: 'exhigh',
+            encodeType: 'aac',
+          })
+            .then(async (apiRes) => {
+              const json = await apiRes.text()
+              res.setHeader('Content-Type', 'application/json')
+              res.end(json)
+            })
+            .catch((err) => {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: err.message }))
+            })
+          return
+        }
+
         next()
       })
     },

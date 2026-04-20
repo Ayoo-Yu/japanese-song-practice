@@ -65,7 +65,7 @@ export async function getLyric(neteaseId: number): Promise<NeteaseLyricResponse>
 }
 
 export async function getSongUrl(neteaseId: number): Promise<string | null> {
-  const res = await fetch(`${BASE_URL}/song/url/v1?id=${neteaseId}&level=exhigh`)
+  const res = await fetch(`/api/qr-login/song-url?id=${neteaseId}`)
   if (!res.ok) throw new Error(`Song URL fetch failed: ${res.status}`)
   const json: NeteaseSongUrlResponse = await res.json()
   const rawUrl = json.data?.[0]?.url ?? null
