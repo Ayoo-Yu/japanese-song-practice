@@ -94,8 +94,7 @@ if not exist ".env" (
     echo [OK] .env created.
     echo.
     echo NetEase Cloud Music Login (optional):
-    echo After starting the dev server, a QR code will appear in the terminal.
-    echo Scan it with the NetEase Music app to log in.
+    echo Open the Settings page after the dev server starts to log in.
     echo You can use all other features without logging in.
 ) else (
     echo [OK] .env already exists, skipping
