@@ -58,12 +58,10 @@ export function SongPage() {
   }, [])
 
   // Auto-scroll only when the active line changes
-  // Lead 400ms so highlight appears 0.1s before gradient (gradient already leads 300ms)
-  const HIGHLIGHT_LEAD = 400
   useEffect(() => {
     if (!isPlaying || userScrollingRef.current) return
     if (!song) return
-    const currentLineIndex = findCurrentLine(song.lrcParsed ?? [], currentTimeMs + HIGHLIGHT_LEAD, song.calibrations ?? {})
+    const currentLineIndex = findCurrentLine(song.lrcParsed ?? [], currentTimeMs, song.calibrations ?? {})
     if (currentLineIndex === prevLineRef.current) return
     prevLineRef.current = currentLineIndex
     if (currentLineIndex < 0) return
@@ -104,7 +102,7 @@ export function SongPage() {
   const furiganaByIndex = new Map(furiganaData.map((fl) => [fl.lineIndex, fl]))
   const parsedLines = song.lrcParsed ?? []
   const calibrations = song.calibrations ?? {}
-  const currentLineIndex = findCurrentLine(parsedLines, currentTimeMs + HIGHLIGHT_LEAD, calibrations)
+  const currentLineIndex = findCurrentLine(parsedLines, currentTimeMs, calibrations)
 
   return (
     <div className="max-w-lg mx-auto pb-8">
