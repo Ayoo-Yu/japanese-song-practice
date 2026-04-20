@@ -117,3 +117,33 @@ export async function saveCalibrations(
   if (!song) return null
   return saveSong({ ...song, calibrations })
 }
+
+export async function updateFuriganaToken(
+  neteaseId: number,
+  lineIndex: number,
+  tokenIndex: number,
+  newReading: string,
+): Promise<Song | null> {
+  const song = loadAll().find((s) => s.neteaseId === neteaseId)
+  if (!song) return null
+
+  const furiganaData = (song.furiganaData ?? []).map((fl) => ({
+    ...fl,
+    words: [...fl.words],
+  }))
+
+  const targetLine = furiganaData.find((fl) => fl.lineIndex === lineIndex)
+  if (!targetLine || tokenIndex >= targetLine.words.length) return null
+
+  targetLine.words[tokenIndex] = {
+    ...targetLine.words[tokenIndex],
+    reading: newReading,
+  }
+
+  const lrcParsed = song.lrcParsed ?? []
+  const romajiMap = new Map(Object.entries(song.romajiLines ?? {}).map(([k, v]) => [Number(k), v]))
+  const translationMap = new Map(Object.entries(song.translationLines ?? {}).map(([k, v]) => [Number(k), v]))
+  const stageLyrics = buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
+
+  return saveSong({ ...song, furiganaData, stageLyrics })
+}

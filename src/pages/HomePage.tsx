@@ -16,6 +16,14 @@ export function HomePage() {
         </Link>
 
         <Link
+          to="/practice"
+          className="block p-6 rounded-2xl bg-surface-alt border border-border hover:bg-surface-muted transition-colors"
+        >
+          <p className="text-lg font-bold text-text">歌词练习</p>
+          <p className="text-sm text-text-secondary mt-1">测试罗马音和假名注音</p>
+        </Link>
+
+        <Link
           to="/library"
           className="block p-6 rounded-2xl bg-surface-alt border border-border hover:bg-surface-muted transition-colors"
         >

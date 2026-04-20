@@ -213,8 +213,10 @@ function CalibrationPanel({
   return (
     <div className="bg-surface-alt rounded-lg p-3 space-y-2 mt-1">
       <div className="flex items-center gap-3 text-xs">
-        <label className="flex items-center gap-1.5">
+        <label className="flex items-center gap-1">
           <span className="text-text-muted">开始</span>
+          <button onClick={() => onUpdate(lineIdx, 'startMs', calibration.startMs - 100)}
+            className="w-6 h-6 rounded bg-surface-muted text-text-secondary font-bold flex items-center justify-center hover:bg-surface-muted/70 active:scale-90 transition-transform">-</button>
           <input
             type="text"
             value={formatMsInput(calibration.startMs)}
@@ -222,12 +224,16 @@ function CalibrationPanel({
               const ms = parseMsInput(e.target.value)
               if (ms !== null) onUpdate(lineIdx, 'startMs', ms)
             }}
-            className="w-20 bg-white rounded px-2 py-1 text-text tabular-nums outline-none border border-border focus:border-accent/50"
+            className="w-16 bg-white rounded px-2 py-1 text-text tabular-nums outline-none border border-border focus:border-accent/50 text-center"
             placeholder="0:00.0"
           />
+          <button onClick={() => onUpdate(lineIdx, 'startMs', calibration.startMs + 100)}
+            className="w-6 h-6 rounded bg-surface-muted text-text-secondary font-bold flex items-center justify-center hover:bg-surface-muted/70 active:scale-90 transition-transform">+</button>
         </label>
-        <label className="flex items-center gap-1.5">
+        <label className="flex items-center gap-1">
           <span className="text-text-muted">结束</span>
+          <button onClick={() => onUpdate(lineIdx, 'endMs', calibration.endMs - 100)}
+            className="w-6 h-6 rounded bg-surface-muted text-text-secondary font-bold flex items-center justify-center hover:bg-surface-muted/70 active:scale-90 transition-transform">-</button>
           <input
             type="text"
             value={formatMsInput(calibration.endMs)}
@@ -235,9 +241,11 @@ function CalibrationPanel({
               const ms = parseMsInput(e.target.value)
               if (ms !== null) onUpdate(lineIdx, 'endMs', ms)
             }}
-            className="w-20 bg-white rounded px-2 py-1 text-text tabular-nums outline-none border border-border focus:border-accent/50"
+            className="w-16 bg-white rounded px-2 py-1 text-text tabular-nums outline-none border border-border focus:border-accent/50 text-center"
             placeholder="0:00.0"
           />
+          <button onClick={() => onUpdate(lineIdx, 'endMs', calibration.endMs + 100)}
+            className="w-6 h-6 rounded bg-surface-muted text-text-secondary font-bold flex items-center justify-center hover:bg-surface-muted/70 active:scale-90 transition-transform">+</button>
         </label>
       </div>
       <div className="flex items-center gap-2">
