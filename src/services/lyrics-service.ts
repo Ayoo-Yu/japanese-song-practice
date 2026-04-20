@@ -1,7 +1,53 @@
 import { getLyric, getSongUrl, getSongDetail } from '../lib/netease'
 import { parseLrc } from '../lib/lrc-parser'
+import { computeFuriganaForLine, tokensToHtml } from '../lib/furigana-service'
 import { getSongByNeteaseId, saveSong, updateAudioUrl } from './song-service'
-import type { Song, StageLine } from '../types'
+import type { Song, StageLine, ParsedLine, FuriganaLine } from '../types'
+
+export function buildStageLyrics(
+  parsedLines: ParsedLine[],
+  romajiMap: Map<number, string>,
+  translationMap: Map<number, string>,
+  furiganaData?: FuriganaLine[],
+): Record<number, StageLine[]> {
+  const furiganaByIndex = new Map<number, FuriganaLine>()
+  if (furiganaData) {
+    for (const fl of furiganaData) furiganaByIndex.set(fl.lineIndex, fl)
+  }
+
+  const stageLyrics: Record<number, StageLine[]> = {}
+  for (let stage = 1; stage <= 5; stage++) {
+    stageLyrics[stage] = parsedLines.map((line, idx) => {
+      const romaji = romajiMap.get(line.timeMs) ?? ''
+      const translation = translationMap.get(line.timeMs) ?? ''
+
+      // Generate furigana HTML for annotated field
+      const fLine = furiganaByIndex.get(idx)
+      const annotated = fLine ? tokensToHtml(fLine.words) : line.text
+
+      let showRomaji = ''
+      let showTranslation = ''
+
+      if (stage === 1) {
+        showRomaji = romaji
+        showTranslation = translation
+      } else if (stage === 2) {
+        showTranslation = translation
+      } else if (stage === 3) {
+        showTranslation = translation.length > 3 ? translation.slice(0, 3) + '…' : translation
+      }
+
+      return {
+        timeMs: line.timeMs,
+        original: line.text,
+        annotated,
+        romaji: showRomaji,
+        translation: showTranslation,
+      }
+    })
+  }
+  return stageLyrics
+}
 
 export async function getAnnotatedSong(neteaseId: number): Promise<Song> {
   const cached = await getSongByNeteaseId(neteaseId)
@@ -9,8 +55,8 @@ export async function getAnnotatedSong(neteaseId: number): Promise<Song> {
     && Object.keys(cached.stageLyrics).length === 5
     && cached.stageLyrics[1]?.some((l) => l.romaji)
     && cached.stageLyrics[3]?.some((l) => l.translation && l.translation.endsWith('…'))
+    && cached.furiganaData && cached.furiganaData.length > 0
   if (hasGoodCache) {
-    // Fix missing metadata on cached songs
     if (!cached.title || !cached.artist) {
       const detail = await getSongDetail(neteaseId)
       if (detail) {
@@ -30,7 +76,6 @@ export async function getAnnotatedSong(neteaseId: number): Promise<Song> {
     throw new Error('没有找到歌词')
   }
 
-  // Parse translation and romaji from NetEase
   const translationMap = tlyric?.lyric
     ? new Map(parseLrc(tlyric.lyric).map((l) => [l.timeMs, l.text]))
     : new Map<number, string>()
@@ -38,46 +83,32 @@ export async function getAnnotatedSong(neteaseId: number): Promise<Song> {
     ? new Map(parseLrc(romalrc.lyric).map((l) => [l.timeMs, l.text]))
     : new Map<number, string>()
 
-  // Pre-compute 5 stage versions:
-  // 1: JP + romaji + full translation (maximum help)
-  // 2: JP + full translation (reading practice)
-  // 3: JP + partial translation hint (testing recall)
-  // 4: JP only (raw reading)
-  // 5: JP only, KTV style (performance)
-  const stageLyrics: Record<number, StageLine[]> = {}
-  for (let stage = 1; stage <= 5; stage++) {
-    stageLyrics[stage] = parsedLines.map((line) => {
-      const romaji = romajiMap.get(line.timeMs) ?? ''
-      const translation = translationMap.get(line.timeMs) ?? ''
+  // Compute furigana for each line
+  const furiganaData: FuriganaLine[] = []
+  for (let i = 0; i < parsedLines.length; i++) {
+    const line = parsedLines[i]
+    const romaji = romajiMap.get(line.timeMs) ?? ''
+    const tokens = computeFuriganaForLine(line.text, romaji)
+    if (tokens) {
+      furiganaData.push({ lineIndex: i, words: tokens })
+    }
+  }
 
-      let showRomaji = ''
-      let showTranslation = ''
+  const stageLyrics = buildStageLyrics(parsedLines, romajiMap, translationMap, furiganaData)
 
-      if (stage === 1) {
-        showRomaji = romaji
-        showTranslation = translation
-      } else if (stage === 2) {
-        showTranslation = translation
-      } else if (stage === 3) {
-        // Show first 3 chars of translation as hint
-        showTranslation = translation.length > 3 ? translation.slice(0, 3) + '…' : translation
-      }
-      // stage 4 & 5: nothing extra
-
-      return {
-        timeMs: line.timeMs,
-        original: line.text,
-        annotated: line.text,
-        romaji: showRomaji,
-        translation: showTranslation,
-      }
-    })
+  // Build per-line source maps for editing
+  const romajiLines: Record<number, string> = {}
+  const translationLines: Record<number, string> = {}
+  for (const line of parsedLines) {
+    const r = romajiMap.get(line.timeMs)
+    if (r) romajiLines[line.timeMs] = r
+    const t = translationMap.get(line.timeMs)
+    if (t) translationLines[line.timeMs] = t
   }
 
   const songUrl = await getSongUrl(neteaseId)
   const base = cached ?? {}
 
-  // Fetch metadata from NetEase if missing from cache
   let meta = { title: (base as Song).title ?? '', artist: (base as Song).artist ?? '', album: (base as Song).album, albumArtUrl: (base as Song).albumArtUrl }
   if (!meta.title || !meta.artist) {
     const detail = await getSongDetail(neteaseId)
@@ -97,6 +128,9 @@ export async function getAnnotatedSong(neteaseId: number): Promise<Song> {
     lrcRaw,
     lrcParsed: parsedLines,
     stageLyrics,
+    furiganaData,
+    romajiLines,
+    translationLines,
     translation: parsedLines.map((l) => translationMap.get(l.timeMs) ?? '').join('\n'),
     audioUrl: songUrl ?? (base as Song).audioUrl,
     audioUrlFetchedAt: songUrl ? new Date().toISOString() : (base as Song).audioUrlFetchedAt,

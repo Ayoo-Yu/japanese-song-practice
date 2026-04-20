@@ -1,4 +1,4 @@
-export type { Song, ParsedLine, FuriganaLine, FuriganaToken, RomajiLine } from './song'
+export type { Song, StageLine, ParsedLine, FuriganaLine, FuriganaToken, RomajiLine } from './song'
 export type {
   PracticeStage,
   LineStatus,

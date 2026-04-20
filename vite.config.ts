@@ -1,22 +1,8 @@
 import { defineConfig, type Plugin, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import path from 'path'
 import http from 'http'
 import https from 'https'
-
-function zlibjsStub(): Plugin {
-  const stubId = path.resolve(__dirname, 'src/lib/zlibjs-stub.ts')
-  return {
-    name: 'zlibjs-stub',
-    enforce: 'pre',
-    resolveId(source) {
-      if (source === 'zlibjs/bin/gunzip.min.js' || source === 'zlibjs/bin/gunzip.min' || source?.endsWith('/zlibjs/bin/gunzip.min.js')) {
-        return stubId
-      }
-    },
-  }
-}
 
 function audioProxy(): Plugin {
   return {
@@ -69,7 +55,7 @@ export default defineConfig(({ mode }) => {
   const musicCookie = env.NETEASE_MUSIC_U ? `MUSIC_U=${env.NETEASE_MUSIC_U}` : ''
 
   return {
-    plugins: [react(), tailwindcss(), zlibjsStub(), audioProxy()],
+    plugins: [react(), tailwindcss(), audioProxy()],
     server: {
       proxy: {
         '/api/netease': {

@@ -1,4 +1,6 @@
-import type { Song } from '../types'
+import type { Song, FuriganaLine } from '../types'
+import { computeFuriganaForLine } from '../lib/furigana-service'
+import { buildStageLyrics } from './lyrics-service'
 
 const STORAGE_KEY = 'jpsong_songs'
 
@@ -57,4 +59,52 @@ export async function updateAudioUrl(id: string, audioUrl: string): Promise<void
 
 export async function listUserSongs(): Promise<Song[]> {
   return loadAll()
+}
+
+export async function updateLyrics(
+  neteaseId: number,
+  changes: Array<{ timeMs: number; original?: string; romaji?: string; translation?: string }>,
+): Promise<Song | null> {
+  const song = loadAll().find((s) => s.neteaseId === neteaseId)
+  if (!song) return null
+
+  // Apply changes to source data
+  const romajiLines = { ...song.romajiLines }
+  const translationLines = { ...song.translationLines }
+  const lrcParsed = [...(song.lrcParsed ?? [])]
+
+  for (const change of changes) {
+    if (change.romaji !== undefined) romajiLines[change.timeMs] = change.romaji
+    if (change.translation !== undefined) translationLines[change.timeMs] = change.translation
+    if (change.original !== undefined) {
+      const idx = lrcParsed.findIndex((l) => l.timeMs === change.timeMs)
+      if (idx >= 0) lrcParsed[idx] = { ...lrcParsed[idx], text: change.original }
+    }
+  }
+
+  // Rebuild romaji/translation maps
+  const romajiMap = new Map(Object.entries(romajiLines).map(([k, v]) => [Number(k), v]))
+  const translationMap = new Map(Object.entries(translationLines).map(([k, v]) => [Number(k), v]))
+
+  // Recompute furigana
+  const furiganaData: FuriganaLine[] = []
+  for (let i = 0; i < lrcParsed.length; i++) {
+    const line = lrcParsed[i]
+    const romaji = romajiMap.get(line.timeMs) ?? ''
+    const tokens = computeFuriganaForLine(line.text, romaji)
+    if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
+  }
+
+  const stageLyrics = buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
+
+  const updated: Song = {
+    ...song,
+    lrcParsed,
+    romajiLines,
+    translationLines,
+    furiganaData,
+    stageLyrics,
+  }
+
+  return saveSong(updated)
 }

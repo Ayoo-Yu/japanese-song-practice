@@ -15,6 +15,9 @@ export interface Song {
   // Raw annotation data (for future mastery features)
   furiganaData?: FuriganaLine[]
   romajiData?: RomajiLine[]
+  // Per-line source data keyed by timeMs (for editing)
+  romajiLines?: Record<number, string>
+  translationLines?: Record<number, string>
   translation?: string
 }
 
