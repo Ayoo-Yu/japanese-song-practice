@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
 
 cd /d "%~dp0"
 
@@ -92,10 +92,6 @@ if not exist ".env" (
 
     echo.
     echo [OK] .env created.
-    echo.
-    echo NetEase Cloud Music Login (optional):
-    echo Open the Settings page after the dev server starts to log in.
-    echo You can use all other features without logging in.
 ) else (
     echo [OK] .env already exists, skipping
 )
@@ -110,14 +106,10 @@ echo   Build:             pnpm build
 echo   Type check:        npx tsc --noEmit
 echo   Edit env:          notepad .env
 echo.
+echo   NetEase Login: Open Settings page in browser after dev server starts
+echo.
 
-set "START_DEV=Y"
-set /p "START_DEV=Start dev server now? [Y/n] "
-if /i not "%START_DEV%"=="n" (
-    echo.
-    echo Starting...
-    call pnpm dev -- --open
-)
+call pnpm dev -- --open
 
 :done
 echo.
