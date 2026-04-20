@@ -14,12 +14,12 @@ export function AudioPlayer({ src }: AudioPlayerProps) {
   const setCurrentTime = usePlayerStore((s) => s.setCurrentTime)
   const setDuration = usePlayerStore((s) => s.setDuration)
   const setPlaying = usePlayerStore((s) => s.setPlaying)
+  const setVocalEnergy = usePlayerStore((s) => s.setVocalEnergy)
 
   useEffect(() => {
     const audio = audioRef.current
-    if (!audio) return
+    if (!audio || !src) return
 
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime * 1000)
     const onLoadedMetadata = () => {
       if (audio.duration && isFinite(audio.duration)) {
         setDuration(audio.duration * 1000)
@@ -28,25 +28,63 @@ export function AudioPlayer({ src }: AudioPlayerProps) {
     const onEnded = () => setPlaying(false)
     const onError = () => setPlaying(false)
 
-    audio.addEventListener('timeupdate', onTimeUpdate)
+    // Web Audio API for vocal energy analysis
+    let analyser: AnalyserNode | null = null
+    let freqData: Uint8Array<ArrayBuffer> | null = null
+    try {
+      const ctx = new AudioContext()
+      const source = ctx.createMediaElementSource(audio)
+      analyser = ctx.createAnalyser()
+      analyser.fftSize = 2048
+      source.connect(analyser)
+      analyser.connect(ctx.destination)
+      freqData = new Uint8Array(analyser.frequencyBinCount)
+    } catch {
+      // CORS or unsupported — fall back to linear progress
+    }
+
+    // Vocal range: 300Hz–4kHz. At 44100Hz sample rate with fftSize 2048,
+    // each bin ≈ 21.5Hz → bins 14–186
+    const BIN_LOW = 14
+    const BIN_HIGH = 186
+    const BIN_COUNT = BIN_HIGH - BIN_LOW
+
+    // 120fps time + energy updates
+    let timerId: ReturnType<typeof setTimeout>
+    const tick = () => {
+      setCurrentTime(audio.currentTime * 1000)
+
+      if (analyser && freqData) {
+        analyser.getByteFrequencyData(freqData)
+        let sum = 0
+        for (let i = BIN_LOW; i < BIN_HIGH; i++) {
+          sum += freqData[i]
+        }
+        // Normalize to 0–100
+        setVocalEnergy(Math.min(100, sum / BIN_COUNT / 1.2))
+      }
+
+      timerId = setTimeout(tick, 8)
+    }
+    timerId = setTimeout(tick, 8)
+
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
     audio.addEventListener('durationchange', onLoadedMetadata)
     audio.addEventListener('ended', onEnded)
     audio.addEventListener('error', onError)
 
-    // Set initial duration if already loaded
     if (audio.duration && isFinite(audio.duration)) {
       setDuration(audio.duration * 1000)
     }
 
     return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate)
+      clearTimeout(timerId)
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
       audio.removeEventListener('durationchange', onLoadedMetadata)
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)
     }
-  }, [src, setCurrentTime, setDuration, setPlaying])
+  }, [src, setCurrentTime, setDuration, setPlaying, setVocalEnergy])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -63,7 +101,6 @@ export function AudioPlayer({ src }: AudioPlayerProps) {
     if (audio) audio.volume = volume
   }, [volume])
 
-  // Reset player state when src changes
   useEffect(() => {
     setCurrentTime(0)
     setDuration(0)
@@ -93,7 +130,7 @@ export function AudioPlayer({ src }: AudioPlayerProps) {
 
   return (
     <div className="audio-player">
-      <audio ref={audioRef} src={src} preload="auto" />
+      <audio ref={audioRef} src={src} crossOrigin="anonymous" preload="auto" />
       <div className="flex items-center gap-3">
         <button
           onClick={() => setPlaying(!isPlaying)}

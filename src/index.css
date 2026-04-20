@@ -28,16 +28,21 @@ ruby rt {
 }
 
 .lyrics-line {
-  font-size: 1.35rem;
-  line-height: 2.4;
+  font-size: 1.2rem;
+  line-height: 2.2;
   letter-spacing: 0.04em;
-  transition: background-color 0.3s, color 0.3s;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background-color 0.3s, color 0.3s, transform 0.3s ease-out;
 }
 
 .lyrics-line.active {
   color: var(--color-accent);
   background: var(--color-accent-bg);
   border-radius: 0.5rem;
+  font-size: 1.5rem;
+  transform: scale(1.02);
 }
 
 .lyrics-line .romaji {
@@ -84,4 +89,10 @@ ruby rt {
   background: var(--color-accent-bg);
   border-radius: 0.75rem;
   transform: scale(1.05);
+}
+
+/* KTV progress: force accent color on overlay */
+.ktv-highlight,
+.ktv-highlight * {
+  color: var(--color-accent) !important;
 }

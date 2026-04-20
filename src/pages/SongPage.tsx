@@ -1,14 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { useAnnotatedSong } from '../hooks/useAnnotatedSong'
 import { SongHeader } from '../components/song/SongHeader'
-import { StageSelector } from '../components/song/StageSelector'
 import { AudioPlayer } from '../components/song/AudioPlayer'
 import { LyricsEditor } from '../components/song/LyricsEditor'
 import { usePlayerStore } from '../stores/player-store'
 import { ensureAudioUrl } from '../services/lyrics-service'
-import { filterByStage } from '../lib/furigana'
-import type { PracticeStage, FuriganaToken } from '../types'
+import type { Song, FuriganaToken } from '../types'
 
 export function SongPage() {
   const { id } = useParams<{ id: string }>()
@@ -18,21 +16,21 @@ export function SongPage() {
   )
   const currentTimeMs = usePlayerStore((s) => s.currentTimeMs)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
-  const [stage, setStage] = useState<PracticeStage>(1)
+  const vocalEnergy = usePlayerStore((s) => s.vocalEnergy)
   const [audioUrl, setAudioUrl] = useState<string | undefined>()
   const [isEditing, setIsEditing] = useState(false)
-  const [editSong, setEditSong] = useState<typeof song>(null)
+  const [editSong, setEditSong] = useState<Song | null>(null)
   const lyricsRef = useRef<HTMLDivElement>(null)
   const userScrollingRef = useRef(false)
-  const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const prevLineRef = useRef(-1)
+  const smoothedProgressRef = useRef(0)
+  const lastLineForProgressRef = useRef(-1)
 
-  const handleLyricsScroll = useCallback(() => {
-    userScrollingRef.current = true
-    clearTimeout(scrollTimerRef.current)
-    scrollTimerRef.current = setTimeout(() => {
-      userScrollingRef.current = false
-    }, 3000)
-  }, [])
+  const [showFurigana, setShowFurigana] = useState(true)
+  const [showRomaji, setShowRomaji] = useState(true)
+  const [showTranslation, setShowTranslation] = useState(true)
+  const [showKTV, setShowKTV] = useState(true)
 
   useEffect(() => {
     if (song) {
@@ -40,13 +38,34 @@ export function SongPage() {
     }
   }, [song])
 
+  // Detect user scroll on the page
   useEffect(() => {
-    if (!isPlaying || !lyricsRef.current || userScrollingRef.current) return
-    const active = lyricsRef.current.querySelector('.lyrics-line.active')
-    if (active) {
-      active.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const onUserScroll = () => {
+      userScrollingRef.current = true
+      clearTimeout(scrollTimerRef.current)
+      scrollTimerRef.current = setTimeout(() => {
+        userScrollingRef.current = false
+      }, 10000)
     }
-  }, [currentTimeMs, isPlaying])
+    window.addEventListener('wheel', onUserScroll, { passive: true })
+    window.addEventListener('touchmove', onUserScroll, { passive: true })
+    return () => {
+      window.removeEventListener('wheel', onUserScroll)
+      window.removeEventListener('touchmove', onUserScroll)
+    }
+  }, [])
+
+  // Auto-scroll only when the active line changes
+  useEffect(() => {
+    if (!isPlaying || userScrollingRef.current) return
+    if (!song) return
+    const currentLineIndex = findCurrentLine(song.lrcParsed ?? [], currentTimeMs)
+    if (currentLineIndex === prevLineRef.current) return
+    prevLineRef.current = currentLineIndex
+    if (currentLineIndex < 0) return
+    const el = document.querySelector('.lyrics-line.active')
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [currentTimeMs, isPlaying, song])
 
   if (!id || Number.isNaN(neteaseId)) {
     return (
@@ -76,10 +95,29 @@ export function SongPage() {
   }
 
   const displaySong = isEditing && editSong ? editSong : song
-  const lines = displaySong.stageLyrics?.[stage] ?? []
+  const lines = displaySong.stageLyrics?.[1] ?? []
   const furiganaData = displaySong.furiganaData ?? []
   const furiganaByIndex = new Map(furiganaData.map((fl) => [fl.lineIndex, fl]))
   const currentLineIndex = findCurrentLine(song.lrcParsed ?? [], currentTimeMs)
+  const parsedLines = song.lrcParsed ?? []
+
+  // Energy-gated progress: follows vocals, pauses during silence
+  const linearProgress = isPlaying && currentLineIndex >= 0
+    ? getLineProgress(parsedLines, currentLineIndex, currentTimeMs)
+    : 0
+
+  // Reset smoothed progress when line changes
+  if (currentLineIndex !== lastLineForProgressRef.current) {
+    lastLineForProgressRef.current = currentLineIndex
+    smoothedProgressRef.current = 0
+  }
+
+  // Rubber-band: catch up fast during vocals, slow during silence
+  const threshold = 15
+  const catchUpRate = vocalEnergy > threshold ? 0.15 : 0.02
+  smoothedProgressRef.current += (linearProgress - smoothedProgressRef.current) * catchUpRate
+
+  const activeProgress = isPlaying && currentLineIndex >= 0 ? smoothedProgressRef.current : 0
 
   return (
     <div className="max-w-lg mx-auto pb-8">
@@ -91,8 +129,19 @@ export function SongPage() {
           album={song.album}
         />
         <AudioPlayer src={audioUrl} />
-        <div className="flex items-center gap-2">
-          <StageSelector currentStage={stage} onStageChange={setStage} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <TogglePill active={showFurigana} onClick={() => setShowFurigana((v) => !v)}>
+            平假名
+          </TogglePill>
+          <TogglePill active={showRomaji} onClick={() => setShowRomaji((v) => !v)}>
+            罗马音
+          </TogglePill>
+          <TogglePill active={showTranslation} onClick={() => setShowTranslation((v) => !v)}>
+            翻译
+          </TogglePill>
+          <TogglePill active={showKTV} onClick={() => setShowKTV((v) => !v)}>
+            渐变
+          </TogglePill>
           <button
             onClick={() => {
               setIsEditing(!isEditing)
@@ -110,12 +159,9 @@ export function SongPage() {
       </div>
 
       {isEditing && editSong ? (
-        <LyricsEditor
-          song={editSong}
-          onSongUpdate={setEditSong}
-        />
+        <LyricsEditor song={editSong} onSongUpdate={setEditSong} />
       ) : (
-        <div className={`py-2 ${stage === 5 ? 'ktv-mode' : ''}`} ref={lyricsRef} onScroll={handleLyricsScroll} onTouchMove={handleLyricsScroll}>
+        <div className="py-2" ref={lyricsRef}>
           {lines.map((line, i) => {
             if (!line.original.trim()) {
               return <div key={i} className="h-6" />
@@ -123,6 +169,7 @@ export function SongPage() {
             const isActive = i === currentLineIndex && isPlaying
             const fLine = furiganaByIndex.get(i)
             const hasFurigana = fLine && fLine.words.some((w) => w.isKanji)
+            const progress = isActive && showKTV ? activeProgress : 0
 
             return (
               <div
@@ -131,18 +178,17 @@ export function SongPage() {
                   isActive ? 'active' : ''
                 }`}
               >
-                {hasFurigana ? (
-                  <FuriganaText
-                    tokens={fLine.words}
-                    stage={stage}
-                  />
-                ) : (
-                  <div className="text-line">{line.original}</div>
-                )}
-                {line.romaji && (
+                <KTVLine progress={progress}>
+                  {hasFurigana ? (
+                    <FuriganaText tokens={fLine.words} showFurigana={showFurigana} />
+                  ) : (
+                    <div className="text-line">{line.original}</div>
+                  )}
+                </KTVLine>
+                {showRomaji && line.romaji && (
                   <div className="romaji">{line.romaji}</div>
                 )}
-                {line.translation && (
+                {showTranslation && line.translation && (
                   <div className="translation">{line.translation}</div>
                 )}
               </div>
@@ -154,25 +200,64 @@ export function SongPage() {
   )
 }
 
-function FuriganaText({ tokens, stage }: { tokens: FuriganaToken[]; stage: PracticeStage }) {
-  const filtered = filterByStage(tokens, stage)
+function TogglePill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+        active
+          ? 'bg-accent/15 text-accent border border-accent/30'
+          : 'bg-surface-alt text-text-muted border border-transparent hover:text-text-secondary'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function KTVLine({ progress, children }: { progress: number; children: React.ReactNode }) {
+  if (progress <= 0) return <>{children}</>
+
+  return (
+    <div className="relative">
+      <div className="opacity-30">{children}</div>
+      <div
+        className="ktv-highlight absolute inset-0 pointer-events-none"
+        style={{ clipPath: `inset(0 ${100 - progress * 100}% 0 0)` }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function FuriganaText({ tokens, showFurigana }: { tokens: FuriganaToken[]; showFurigana: boolean }) {
   return (
     <div className="text-line">
-      {filtered.map((token, i) => {
+      {tokens.map((token, i) => {
         if (token.isKanji && token.reading) {
-          return (
-            <ruby key={i}>
-              {token.surface}
-              <rp>(</rp>
-              <rt>{token.reading}</rt>
-              <rp>)</rp>
-            </ruby>
-          )
+          if (showFurigana) {
+            return (
+              <ruby key={i}>{token.surface}<rp>(</rp><rt>{token.reading}</rt><rp>)</rp></ruby>
+            )
+          }
+          return <span key={i}>{token.surface}</span>
         }
         return <span key={i}>{token.surface}</span>
       })}
     </div>
   )
+}
+
+function getLineProgress(
+  lines: { timeMs: number }[],
+  lineIndex: number,
+  currentTimeMs: number,
+): number {
+  const start = lines[lineIndex].timeMs
+  const end = lineIndex + 1 < lines.length ? lines[lineIndex + 1].timeMs : start + 5000
+  const lookAhead = currentTimeMs + 300
+  return Math.max(0, Math.min(1, (lookAhead - start) / (end - start)))
 }
 
 function findCurrentLine(
