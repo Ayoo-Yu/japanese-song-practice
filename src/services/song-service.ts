@@ -61,6 +61,11 @@ export async function listUserSongs(): Promise<Song[]> {
   return loadAll()
 }
 
+export async function deleteSong(id: string): Promise<void> {
+  const songs = loadAll().filter((s) => s.id !== id)
+  saveAll(songs)
+}
+
 export async function updateLyrics(
   neteaseId: number,
   changes: Array<{ timeMs: number; original?: string; romaji?: string; translation?: string }>,
