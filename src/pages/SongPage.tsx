@@ -161,7 +161,7 @@ export function SongPage() {
             const lineProgress = isPlaying && showKTV
               ? getLineProgress(parsedLines, i, currentTimeMs, calibrations[i])
               : 0
-            const isActive = i === currentLineIndex && isPlaying && (!showKTV || lineProgress > 0)
+            const isActive = i === currentLineIndex && isPlaying
 
             return (
               <div
