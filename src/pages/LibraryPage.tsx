@@ -20,7 +20,7 @@ export function LibraryPage() {
 
   return (
     <div className="p-6 max-w-lg mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-4 mb-6 rounded-lg bg-surface/68 backdrop-blur-sm px-4 py-3">
         <h2 className="text-2xl font-bold text-text">我的曲库</h2>
         {songs.length > 0 && (
           <button

@@ -59,7 +59,9 @@ export function PracticeQuizPage() {
     const pct = Math.round((session.correctCount / total) * 100)
     return (
       <div className="p-6 max-w-lg mx-auto text-center py-12">
-        <h2 className="text-3xl font-bold text-text mb-2">练习完成!</h2>
+        <div className="mb-6 rounded-lg bg-surface/68 backdrop-blur-sm px-4 py-3">
+          <h2 className="text-3xl font-bold text-text mb-2">练习完成!</h2>
+        </div>
         <p className="text-5xl font-bold text-accent my-6">{pct}%</p>
         <p className="text-text-secondary mb-8">
           {session.correctCount} / {total} 正确
