@@ -48,6 +48,32 @@ if errorlevel 1 (
 echo [OK] Node.js
 node -v
 
+REM Check Node.js version (need 20.19+ or 22.12+)
+for /f "tokens=1,2 delims=." %%a in ('node -v 2^>nul') do (
+    set "NODE_MAJOR=%%a"
+    set "NODE_MINOR=%%b"
+)
+set "NODE_MAJOR=%NODE_MAJOR:v=%"
+if "%NODE_MAJOR%"=="20" (
+    if %NODE_MINOR% LSS 19 (
+        echo [ERROR] Node.js 20.19+ required, you have 20.%NODE_MINOR%.x
+        echo         Please upgrade: https://nodejs.org/
+        goto :done
+    )
+)
+if "%NODE_MAJOR%"=="22" (
+    if %NODE_MINOR% LSS 12 (
+        echo [ERROR] Node.js 22.12+ required, you have 22.%NODE_MINOR%.x
+        echo         Please upgrade: https://nodejs.org/
+        goto :done
+    )
+)
+if %NODE_MAJOR% LSS 20 (
+    echo [ERROR] Node.js 20+ required, you have %NODE_MAJOR%.x
+    echo         Please upgrade: https://nodejs.org/
+    goto :done
+)
+
 REM Install pnpm if missing
 where pnpm >nul 2>&1
 if errorlevel 1 (
