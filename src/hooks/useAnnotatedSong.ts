@@ -28,5 +28,5 @@ export function useAnnotatedSong(neteaseId: number | null) {
     return () => { cancelled = true }
   }, [neteaseId])
 
-  return { song, isLoading, error }
+  return { song, setSong, isLoading, error }
 }

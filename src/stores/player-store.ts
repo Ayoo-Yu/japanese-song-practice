@@ -6,11 +6,15 @@ interface PlayerState {
   isPlaying: boolean
   volume: number
   vocalEnergy: number
+  pendingSeekMs: number | null
+  playRangeEnd: number | null
   setCurrentTime: (ms: number) => void
   setDuration: (ms: number) => void
   setPlaying: (playing: boolean) => void
   setVolume: (vol: number) => void
   setVocalEnergy: (energy: number) => void
+  setPendingSeek: (ms: number | null) => void
+  setPlayRangeEnd: (ms: number | null) => void
 }
 
 export const usePlayerStore = create<PlayerState>()((set) => ({
@@ -19,10 +23,14 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   isPlaying: false,
   volume: 0.8,
   vocalEnergy: 0,
+  pendingSeekMs: null,
+  playRangeEnd: null,
 
   setCurrentTime: (ms) => set({ currentTimeMs: ms }),
   setDuration: (ms) => set({ durationMs: ms }),
   setPlaying: (playing) => set({ isPlaying: playing }),
   setVolume: (vol) => set({ volume: vol }),
   setVocalEnergy: (energy) => set({ vocalEnergy: energy }),
+  setPendingSeek: (ms) => set({ pendingSeekMs: ms }),
+  setPlayRangeEnd: (ms) => set({ playRangeEnd: ms }),
 }))

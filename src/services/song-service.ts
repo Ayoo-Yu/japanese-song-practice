@@ -108,3 +108,12 @@ export async function updateLyrics(
 
   return saveSong(updated)
 }
+
+export async function saveCalibrations(
+  neteaseId: number,
+  calibrations: Record<number, { startMs: number; endMs: number }>,
+): Promise<Song | null> {
+  const song = loadAll().find((s) => s.neteaseId === neteaseId)
+  if (!song) return null
+  return saveSong({ ...song, calibrations })
+}

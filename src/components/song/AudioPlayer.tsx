@@ -15,6 +15,10 @@ export function AudioPlayer({ src }: AudioPlayerProps) {
   const setDuration = usePlayerStore((s) => s.setDuration)
   const setPlaying = usePlayerStore((s) => s.setPlaying)
   const setVocalEnergy = usePlayerStore((s) => s.setVocalEnergy)
+  const pendingSeekMs = usePlayerStore((s) => s.pendingSeekMs)
+  const playRangeEnd = usePlayerStore((s) => s.playRangeEnd)
+  const setPendingSeek = usePlayerStore((s) => s.setPendingSeek)
+  const setPlayRangeEnd = usePlayerStore((s) => s.setPlayRangeEnd)
 
   useEffect(() => {
     const audio = audioRef.current
@@ -100,6 +104,25 @@ export function AudioPlayer({ src }: AudioPlayerProps) {
     const audio = audioRef.current
     if (audio) audio.volume = volume
   }, [volume])
+
+  // Seek to pending position
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || pendingSeekMs === null) return
+    audio.currentTime = pendingSeekMs / 1000
+    setCurrentTime(pendingSeekMs)
+    setPendingSeek(null)
+    if (!isPlaying) setPlaying(true)
+  }, [pendingSeekMs, setCurrentTime, setPendingSeek, setPlaying, isPlaying])
+
+  // Auto-stop at play range end
+  useEffect(() => {
+    if (playRangeEnd === null || !isPlaying) return
+    if (currentTimeMs >= playRangeEnd) {
+      setPlaying(false)
+      setPlayRangeEnd(null)
+    }
+  }, [currentTimeMs, playRangeEnd, isPlaying, setPlaying, setPlayRangeEnd])
 
   useEffect(() => {
     setCurrentTime(0)

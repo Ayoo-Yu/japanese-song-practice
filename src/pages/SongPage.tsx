@@ -11,12 +11,13 @@ import type { Song, FuriganaToken } from '../types'
 export function SongPage() {
   const { id } = useParams<{ id: string }>()
   const neteaseId = id ? parseInt(id, 10) : null
-  const { song, isLoading, error } = useAnnotatedSong(
+  const { song, setSong, isLoading, error } = useAnnotatedSong(
     Number.isNaN(neteaseId) ? null : neteaseId
   )
   const currentTimeMs = usePlayerStore((s) => s.currentTimeMs)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
-  const vocalEnergy = usePlayerStore((s) => s.vocalEnergy)
+  const _vocalEnergy = usePlayerStore((s) => s.vocalEnergy)
+  void _vocalEnergy
   const [audioUrl, setAudioUrl] = useState<string | undefined>()
   const [isEditing, setIsEditing] = useState(false)
   const [editSong, setEditSong] = useState<Song | null>(null)
@@ -24,8 +25,6 @@ export function SongPage() {
   const userScrollingRef = useRef(false)
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const prevLineRef = useRef(-1)
-  const smoothedProgressRef = useRef(0)
-  const lastLineForProgressRef = useRef(-1)
 
   const [showFurigana, setShowFurigana] = useState(true)
   const [showRomaji, setShowRomaji] = useState(true)
@@ -59,7 +58,7 @@ export function SongPage() {
   useEffect(() => {
     if (!isPlaying || userScrollingRef.current) return
     if (!song) return
-    const currentLineIndex = findCurrentLine(song.lrcParsed ?? [], currentTimeMs)
+    const currentLineIndex = findCurrentLine(song.lrcParsed ?? [], currentTimeMs, song.calibrations ?? {})
     if (currentLineIndex === prevLineRef.current) return
     prevLineRef.current = currentLineIndex
     if (currentLineIndex < 0) return
@@ -98,26 +97,9 @@ export function SongPage() {
   const lines = displaySong.stageLyrics?.[1] ?? []
   const furiganaData = displaySong.furiganaData ?? []
   const furiganaByIndex = new Map(furiganaData.map((fl) => [fl.lineIndex, fl]))
-  const currentLineIndex = findCurrentLine(song.lrcParsed ?? [], currentTimeMs)
   const parsedLines = song.lrcParsed ?? []
-
-  // Energy-gated progress: follows vocals, pauses during silence
-  const linearProgress = isPlaying && currentLineIndex >= 0
-    ? getLineProgress(parsedLines, currentLineIndex, currentTimeMs)
-    : 0
-
-  // Reset smoothed progress when line changes
-  if (currentLineIndex !== lastLineForProgressRef.current) {
-    lastLineForProgressRef.current = currentLineIndex
-    smoothedProgressRef.current = 0
-  }
-
-  // Rubber-band: catch up fast during vocals, slow during silence
-  const threshold = 15
-  const catchUpRate = vocalEnergy > threshold ? 0.15 : 0.02
-  smoothedProgressRef.current += (linearProgress - smoothedProgressRef.current) * catchUpRate
-
-  const activeProgress = isPlaying && currentLineIndex >= 0 ? smoothedProgressRef.current : 0
+  const calibrations = song.calibrations ?? {}
+  const currentLineIndex = findCurrentLine(parsedLines, currentTimeMs, calibrations)
 
   return (
     <div className="max-w-lg mx-auto pb-8">
@@ -159,17 +141,24 @@ export function SongPage() {
       </div>
 
       {isEditing && editSong ? (
-        <LyricsEditor song={editSong} onSongUpdate={setEditSong} />
+        <LyricsEditor
+          song={editSong}
+          calibrations={calibrations}
+          onCalibrationsSave={(c) => setSong({ ...song!, calibrations: c })}
+          onSongUpdate={setEditSong}
+        />
       ) : (
         <div className="py-2" ref={lyricsRef}>
           {lines.map((line, i) => {
             if (!line.original.trim()) {
               return <div key={i} className="h-6" />
             }
-            const isActive = i === currentLineIndex && isPlaying
             const fLine = furiganaByIndex.get(i)
             const hasFurigana = fLine && fLine.words.some((w) => w.isKanji)
-            const progress = isActive && showKTV ? activeProgress : 0
+            const lineProgress = isPlaying && showKTV
+              ? getLineProgress(parsedLines, i, currentTimeMs, calibrations[i])
+              : 0
+            const isActive = i === currentLineIndex && isPlaying && (!showKTV || lineProgress > 0)
 
             return (
               <div
@@ -178,7 +167,7 @@ export function SongPage() {
                   isActive ? 'active' : ''
                 }`}
               >
-                <KTVLine progress={progress}>
+                <KTVLine progress={lineProgress}>
                   {hasFurigana ? (
                     <FuriganaText tokens={fLine.words} showFurigana={showFurigana} />
                   ) : (
@@ -219,7 +208,7 @@ function KTVLine({ progress, children }: { progress: number; children: React.Rea
   if (progress <= 0) return <>{children}</>
 
   return (
-    <div className="relative">
+    <div className="inline-block relative max-w-full text-left">
       <div className="opacity-30">{children}</div>
       <div
         className="ktv-highlight absolute inset-0 pointer-events-none"
@@ -253,29 +242,39 @@ function getLineProgress(
   lines: { timeMs: number }[],
   lineIndex: number,
   currentTimeMs: number,
+  calibration?: { startMs: number; endMs: number },
 ): number {
-  const start = lines[lineIndex].timeMs
-  const end = lineIndex + 1 < lines.length ? lines[lineIndex + 1].timeMs : start + 5000
-  const lookAhead = currentTimeMs + 300
-  return Math.max(0, Math.min(1, (lookAhead - start) / (end - start)))
+  const { start, end } = getLineWindow(lines, lineIndex, calibration)
+  if (end <= start) return currentTimeMs >= start ? 1 : 0
+  const offset = calibration ? 0 : 300
+  return Math.max(0, Math.min(1, (currentTimeMs + offset - start) / (end - start)))
 }
 
 function findCurrentLine(
   lines: { timeMs: number }[],
   currentTimeMs: number,
+  calibrations: Record<number, { startMs: number; endMs: number }>,
 ): number {
   if (lines.length === 0) return -1
-  let low = 0
-  let high = lines.length - 1
-  let result = -1
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2)
-    if (lines[mid].timeMs <= currentTimeMs) {
-      result = mid
-      low = mid + 1
-    } else {
-      high = mid - 1
+  for (let i = 0; i < lines.length; i++) {
+    const { start, end } = getLineWindow(lines, i, calibrations[i])
+    if (currentTimeMs < start) {
+      return i === 0 ? -1 : i - 1
+    }
+    if (currentTimeMs < end || i === lines.length - 1) {
+      return i
     }
   }
-  return result
+  return lines.length - 1
+}
+
+function getLineWindow(
+  lines: { timeMs: number }[],
+  lineIndex: number,
+  calibration?: { startMs: number; endMs: number },
+): { start: number; end: number } {
+  const start = calibration?.startMs ?? lines[lineIndex].timeMs
+  const fallbackEnd = lineIndex + 1 < lines.length ? lines[lineIndex + 1].timeMs : start + 5000
+  const end = calibration?.endMs ?? fallbackEnd
+  return { start, end: Math.max(end, start) }
 }
