@@ -1,0 +1,87 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-surface: #ffffff;
+  --color-surface-alt: #f8f7fc;
+  --color-surface-muted: #eeeef3;
+  --color-text: #1a1a2e;
+  --color-text-secondary: #6b6b80;
+  --color-text-muted: #9b9bb0;
+  --color-accent: #6c5ce7;
+  --color-accent-light: #a29bfe;
+  --color-accent-bg: rgba(108, 92, 231, 0.08);
+  --color-border: #e5e5ee;
+  --color-highlight: rgba(108, 92, 231, 0.2);
+  --color-success: #00b894;
+  --color-warning: #fdcb6e;
+  --color-danger: #e17055;
+
+  --font-sans: 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, monospace;
+}
+
+ruby rt {
+  font-size: 0.55em;
+  font-weight: 400;
+  color: var(--color-accent);
+  letter-spacing: 0.02em;
+}
+
+.lyrics-line {
+  font-size: 1.35rem;
+  line-height: 2.4;
+  letter-spacing: 0.04em;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.lyrics-line.active {
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
+  border-radius: 0.5rem;
+}
+
+.lyrics-line .romaji {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+}
+
+.lyrics-line .translation {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 0.15rem;
+  line-height: 1.4;
+}
+
+.audio-player input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.audio-player input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+}
+
+/* KTV mode (stage 5): bigger text, bolder highlight */
+.ktv-mode .lyrics-line {
+  font-size: 1.8rem;
+  line-height: 2.2;
+  text-align: center;
+}
+
+.ktv-mode .lyrics-line.active {
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
+  border-radius: 0.75rem;
+  transform: scale(1.05);
+}
