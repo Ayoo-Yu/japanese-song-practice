@@ -165,6 +165,30 @@ export function neteaseQRLogin(): Plugin {
           return
         }
 
+        if (url.pathname === '/save') {
+          let body = ''
+          req.on('data', (chunk: Buffer) => { body += chunk.toString() })
+          req.on('end', () => {
+            try {
+              const { cookie } = JSON.parse(body) as { cookie?: string }
+              if (!cookie || cookie.length < 10) {
+                res.statusCode = 400
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify({ ok: false, error: 'Cookie 值无效' }))
+                return
+              }
+              writeEnvCookie(cookie)
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: true }))
+            } catch {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: false, error: '请求格式错误' }))
+            }
+          })
+          return
+        }
+
         next()
       })
     },
