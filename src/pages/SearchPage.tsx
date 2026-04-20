@@ -30,7 +30,7 @@ export function SearchPage() {
   }
 
   const handlePreview = (song: NeteaseSearchResult) => {
-    navigate(`/song/${song.id}`)
+    navigate(`/song/${song.id}?preview=1`)
   }
 
   const handleAdd = async (song: NeteaseSearchResult) => {

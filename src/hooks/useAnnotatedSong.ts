@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { getAnnotatedSong } from '../services/lyrics-service'
 import type { Song } from '../types'
 
-export function useAnnotatedSong(neteaseId: number | null) {
+export function useAnnotatedSong(neteaseId: number | null, preview = false) {
   const [song, setSong] = useState<Song | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -14,7 +14,7 @@ export function useAnnotatedSong(neteaseId: number | null) {
     setIsLoading(true)
     setError(null)
 
-    getAnnotatedSong(neteaseId)
+    getAnnotatedSong(neteaseId, preview)
       .then((result) => {
         if (!cancelled) setSong(result)
       })
@@ -26,7 +26,7 @@ export function useAnnotatedSong(neteaseId: number | null) {
       })
 
     return () => { cancelled = true }
-  }, [neteaseId])
+  }, [neteaseId, preview])
 
   return { song, setSong, isLoading, error }
 }

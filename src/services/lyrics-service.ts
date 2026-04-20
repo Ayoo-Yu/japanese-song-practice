@@ -49,7 +49,7 @@ export function buildStageLyrics(
   return stageLyrics
 }
 
-export async function getAnnotatedSong(neteaseId: number): Promise<Song> {
+export async function getAnnotatedSong(neteaseId: number, preview = false): Promise<Song> {
   const cached = await getSongByNeteaseId(neteaseId)
   const hasGoodCache = cached?.stageLyrics
     && Object.keys(cached.stageLyrics).length === 5
@@ -136,7 +136,7 @@ export async function getAnnotatedSong(neteaseId: number): Promise<Song> {
     audioUrlFetchedAt: songUrl ? new Date().toISOString() : (base as Song).audioUrlFetchedAt,
   }
 
-  return saveSong(song)
+  return preview ? song : saveSong(song)
 }
 
 export async function createSongFromSearch(result: {

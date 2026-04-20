@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useAnnotatedSong } from '../hooks/useAnnotatedSong'
 import { SongHeader } from '../components/song/SongHeader'
 import { AudioPlayer } from '../components/song/AudioPlayer'
@@ -10,9 +10,12 @@ import type { Song, FuriganaToken } from '../types'
 
 export function SongPage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const neteaseId = id ? parseInt(id, 10) : null
+  const isPreview = searchParams.get('preview') === '1'
   const { song, setSong, isLoading, error } = useAnnotatedSong(
-    Number.isNaN(neteaseId) ? null : neteaseId
+    Number.isNaN(neteaseId) ? null : neteaseId,
+    isPreview
   )
   const currentTimeMs = usePlayerStore((s) => s.currentTimeMs)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
