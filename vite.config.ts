@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import http from 'http'
 import https from 'https'
+import { neteaseQRLogin } from './src/lib/netease-qr-login'
 
 function audioProxy(): Plugin {
   return {
@@ -55,7 +56,7 @@ export default defineConfig(({ mode }) => {
   const musicCookie = env.NETEASE_MUSIC_U ? `MUSIC_U=${env.NETEASE_MUSIC_U}` : ''
 
   return {
-    plugins: [react(), tailwindcss(), audioProxy()],
+    plugins: [react(), tailwindcss(), audioProxy(), neteaseQRLogin()],
     server: {
       proxy: {
         '/api/netease': {

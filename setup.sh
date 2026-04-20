@@ -7,12 +7,18 @@ echo "   日语歌练习 App — 一键启动脚本"
 echo "========================================="
 echo ""
 
-# ── Check Node.js ──
+# ── Check / Install Node.js ──
 if ! command -v node &> /dev/null; then
-  echo "❌ 未检测到 Node.js，请先安装 Node.js 18+"
-  echo "   推荐使用 nvm: https://github.com/nvm-sh/nvm"
-  echo "   安装后运行: nvm install 18 && nvm use 18"
-  exit 1
+  echo "📦 未检测到 Node.js，正在安装..."
+  if command -v brew &> /dev/null; then
+    brew install node
+  elif command -v nvm &> /dev/null; then
+    nvm install 20
+    nvm use 20
+  else
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+  fi
 fi
 
 NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
@@ -36,33 +42,13 @@ pnpm install
 
 # ── Configure environment ──
 if [ ! -f .env ]; then
-  echo ""
-  echo "⚙️  配置环境变量 (.env)"
   cp .env.example .env
-
   echo ""
-  echo "请输入以下配置（直接回车可跳过，稍后手动编辑 .env）："
+  echo "✅ .env 已创建。"
   echo ""
-
-  read -p "  Supabase URL [默认: 跳过]: " SUPABASE_URL
-  if [ -n "$SUPABASE_URL" ]; then
-    sed -i.bak "s|your_supabase_url_here|${SUPABASE_URL}|" .env
-  fi
-
-  read -p "  Supabase Anon Key [默认: 跳过]: " SUPABASE_KEY
-  if [ -n "$SUPABASE_KEY" ]; then
-    sed -i.bak "s|your_supabase_anon_key_here|${SUPABASE_KEY}|" .env
-  fi
-
-  read -p "  网易云音乐 API 地址 [默认: 跳过]: " NETEASE_URL
-  if [ -n "$NETEASE_URL" ]; then
-    sed -i.bak "s|your_netease_api_url_here|${NETEASE_URL}|" .env
-  fi
-
-  rm -f .env.bak
-
-  echo ""
-  echo "✅ .env 已创建。你也可以随时手动编辑它。"
+  echo "⚙️  网易云音乐登录（可选）"
+  echo "启动开发服务器后，终端会自动显示二维码，用网易云音乐 APP 扫码即可登录。"
+  echo "登录后可播放 VIP 歌曲。不登录也能正常使用其他功能。"
 else
   echo "✅ .env 已存在，跳过配置"
 fi
@@ -71,13 +57,13 @@ fi
 echo ""
 echo "========================================="
 echo "   ✅ 准备就绪！"
-echo "========================================="
+echo "=========================================""
 echo ""
 echo "  启动开发服务器:  pnpm dev"
 echo "  生产构建:        pnpm build"
 echo "  类型检查:        npx tsc --noEmit"
 echo ""
-echo "  编辑环境变量:    vi .env"
+echo "  首次启动会显示网易云音乐二维码，扫码即可登录。"
 echo ""
 
 # ── Optionally start dev server ──

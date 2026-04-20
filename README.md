@@ -42,28 +42,10 @@ pnpm dev
 
 | 变量 | 说明 | 必填 |
 |------|------|------|
-| `VITE_SUPABASE_URL` | Supabase 项目地址 | ✅ |
-| `VITE_SUPABASE_ANON_KEY` | Supabase 匿名 Key | ✅ |
-| `VITE_NETEASE_API_URL` | 网易云音乐 API 地址 | ✅ |
 | `NETEASE_MUSIC_U` | 网易云音乐 Cookie（VIP 歌曲） | ❌ |
 
-### 网易云音乐 API
-
-项目使用 [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi) 获取歌曲和歌词。你需要单独部署这个 API 服务，然后将地址填入 `VITE_NETEASE_API_URL`。
-
-推荐部署到 Vercel：
-
-```bash
-git clone https://github.com/Binaryify/NeteaseCloudMusicApi.git
-cd NeteaseCloudMusicApi
-# 部署到 Vercel 或其他平台
-```
-
-### Supabase
-
-1. 在 [supabase.com](https://supabase.com) 创建项目
-2. 获取 Project URL 和 anon public key
-3. 填入 `.env`
+首次启动开发服务器时，终端会自动显示二维码，用网易云音乐 APP 扫码即可自动登录。
+也可以手动获取 Cookie：浏览器 DevTools > Application > Cookies > music.163.com > MUSIC_U
 
 ## 技术栈
 
@@ -71,9 +53,8 @@ cd NeteaseCloudMusicApi
 - Tailwind CSS 4
 - Zustand 5（状态管理）
 - React Router 7（路由）
-- Supabase（认证 + 数据库）
 - kuroshiro + kuromoji（汉字 → 假名注音）
-- 网易云音乐 API
+- 网易云音乐 API（Vite 代理直连）
 
 ## 常用命令
 
@@ -94,7 +75,7 @@ src/
 │   ├── practice/     # 练习模块
 │   └── layout/       # 布局组件
 ├── pages/            # 页面级组件
-├── services/         # Supabase CRUD 封装
+├── services/         # 数据服务（localStorage CRUD）
 ├── stores/           # Zustand 状态管理
 ├── hooks/            # 自定义 React Hooks
 ├── lib/              # 纯逻辑工具

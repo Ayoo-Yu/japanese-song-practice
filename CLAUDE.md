@@ -18,18 +18,18 @@ npx tsc --noEmit  # Type check only
 ## Tech Stack
 
 - React 19 + Vite 8 + TypeScript 6 + Tailwind CSS 4
-- Supabase (auth + DB + cross-device sync)
-- 网易云音乐 API (NeteaseCloudMusicApi, deployed separately on Vercel)
+- 网易云音乐 API (proxied via Vite dev server to music.163.com)
 - kuroshiro + kuromoji (kanji → furigana annotation, runs in-browser)
 - Zustand (state management)
 - React Router 7 (client-side routing)
+- All data stored in localStorage (no backend required)
 
 ## Architecture
 
-- `src/types/` — Shared TypeScript interfaces (Song, ParsedLine, FuriganaToken, WordMastery, etc.)
-- `src/lib/` — Pure logic: `supabase.ts` (client), `netease.ts` (API), `lrc-parser.ts`, `kuroshiro.ts` (furigana), `spaced-repetition.ts` (SM-2)
-- `src/stores/` — Zustand stores: auth, player, song, practice, mastery
-- `src/services/` — Supabase CRUD wrappers
+- `src/types/` — Shared TypeScript interfaces (Song, ParsedLine, FuriganaToken, etc.)
+- `src/lib/` — Pure logic: `netease.ts` (API), `lrc-parser.ts`, `kuroshiro.ts` (furigana), `spaced-repetition.ts` (SM-2)
+- `src/stores/` — Zustand stores: player, song, practice, mastery
+- `src/services/` — localStorage CRUD wrappers
 - `src/components/` — UI by domain: search, lyrics, player, practice, layout
 - `src/pages/` — Route-level page components
 - `src/hooks/` — Custom React hooks
@@ -37,18 +37,16 @@ npx tsc --noEmit  # Type check only
 ## Key Concepts
 
 - **5 Practice Stages**: Stage 1 (full aids) → Stage 5 (raw lyrics, KTV mode)
-- **Furigana pre-computation**: kuroshiro annotates lyrics once when song is added, stored as JSONB
+- **Furigana pre-computation**: kuroshiro annotates lyrics once when song is added, stored in localStorage
 - **Cross-song word mastery**: Same kanji word shares mastery record across songs (SM-2 algorithm)
 - **Stage 3 partial furigana**: Hides readings for words with mastery_level >= 3
 
 ## Environment Variables
 
 ```
-VITE_SUPABASE_URL=       # Supabase project URL
-VITE_SUPABASE_ANON_KEY=  # Supabase anonymous key
-VITE_NETEASE_API_URL=    # NeteaseCloudMusicApi base URL (deployed on Vercel)
+NETEASE_MUSIC_U=    # NetEase Cloud Music session cookie (optional, for VIP songs)
 ```
 
-## Database (Supabase)
+## Data Storage
 
-6 tables: `profiles`, `songs`, `user_songs`, `word_mastery`, `line_mastery`, `practice_sessions`. All user-scoped tables have RLS policies.
+All data is stored in browser localStorage under key `jpsong_songs`. No server database required.
