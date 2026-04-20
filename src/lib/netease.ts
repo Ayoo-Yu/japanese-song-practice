@@ -65,18 +65,7 @@ export async function getLyric(neteaseId: number): Promise<NeteaseLyricResponse>
 }
 
 export async function getSongUrl(neteaseId: number): Promise<string | null> {
-  // Use local NeteaseCloudMusicApi via Vite proxy (handles VIP + auth cookie)
-  try {
-    const apiRes = await fetch(`/api/local/song/url/v1?id=${neteaseId}&level=exhigh`)
-    if (apiRes.ok) {
-      const apiJson: NeteaseSongUrlResponse = await apiRes.json()
-      const rawUrl = apiJson.data?.[0]?.url ?? null
-      if (rawUrl) return `/api/audio-proxy?url=${encodeURIComponent(rawUrl)}`
-    }
-  } catch { /* local API not running */ }
-
-  // Fallback to direct API
-  const res = await fetch(`${BASE_URL}/song/enhance/player/url?id=${neteaseId}&ids=%5B${neteaseId}%5D&br=320000`)
+  const res = await fetch(`${BASE_URL}/song/url/v1?id=${neteaseId}&level=exhigh`)
   if (!res.ok) throw new Error(`Song URL fetch failed: ${res.status}`)
   const json: NeteaseSongUrlResponse = await res.json()
   const rawUrl = json.data?.[0]?.url ?? null
