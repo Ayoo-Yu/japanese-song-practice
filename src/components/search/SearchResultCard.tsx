@@ -2,11 +2,13 @@ import type { NeteaseSearchResult } from '../../types'
 
 interface SearchResultCardProps {
   song: NeteaseSearchResult
-  onSelect: (song: NeteaseSearchResult) => void
-  isLoading?: boolean
+  onPreview: (song: NeteaseSearchResult) => void
+  onAdd: (song: NeteaseSearchResult) => void
+  isAdding?: boolean
+  added?: boolean
 }
 
-export function SearchResultCard({ song, onSelect, isLoading }: SearchResultCardProps) {
+export function SearchResultCard({ song, onPreview, onAdd, isAdding, added }: SearchResultCardProps) {
   const durationMin = Math.floor(song.duration / 60000)
   const durationSec = Math.floor((song.duration % 60000) / 1000)
 
@@ -25,7 +27,10 @@ export function SearchResultCard({ song, onSelect, isLoading }: SearchResultCard
           🎵
         </div>
       )}
-      <div className="flex-1 min-w-0">
+      <div
+        className="flex-1 min-w-0 cursor-pointer"
+        onClick={() => onPreview(song)}
+      >
         <p className="text-text font-medium truncate">{song.name}</p>
         <p className="text-text-secondary text-sm truncate">
           {song.artists.map((a) => a.name).join(' / ')}
@@ -35,11 +40,15 @@ export function SearchResultCard({ song, onSelect, isLoading }: SearchResultCard
         </p>
       </div>
       <button
-        onClick={() => onSelect(song)}
-        disabled={isLoading}
-        className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium shrink-0 disabled:opacity-50"
+        onClick={() => onAdd(song)}
+        disabled={isAdding || added}
+        className={`px-4 py-2 rounded-lg text-sm font-medium shrink-0 transition-colors ${
+          added
+            ? 'bg-surface-muted text-text-muted'
+            : 'bg-accent text-white hover:opacity-90 disabled:opacity-50'
+        }`}
       >
-        {isLoading ? '添加中...' : '添加'}
+        {isAdding ? '添加中...' : added ? '已添加' : '添加'}
       </button>
     </div>
   )

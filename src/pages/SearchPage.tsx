@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchSongs } from '../lib/netease'
 import { createSongFromSearch } from '../services/lyrics-service'
+import { getSongByNeteaseId } from '../services/song-service'
 import { SearchBar } from '../components/search/SearchBar'
 import { SearchResultCard } from '../components/search/SearchResultCard'
 import type { NeteaseSearchResult } from '../types'
@@ -11,6 +12,7 @@ export function SearchPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [addingId, setAddingId] = useState<number | null>(null)
+  const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
   const navigate = useNavigate()
 
   const handleSearch = async (query: string) => {
@@ -27,12 +29,21 @@ export function SearchPage() {
     }
   }
 
+  const handlePreview = (song: NeteaseSearchResult) => {
+    navigate(`/song/${song.id}`)
+  }
+
   const handleAdd = async (song: NeteaseSearchResult) => {
     setAddingId(song.id)
     setError(null)
     try {
+      const existing = await getSongByNeteaseId(song.id)
+      if (existing) {
+        setAddedIds((prev) => new Set(prev).add(song.id))
+        return
+      }
       await createSongFromSearch(song)
-      navigate(`/song/${song.id}`)
+      setAddedIds((prev) => new Set(prev).add(song.id))
     } catch {
       setError('添加歌曲失败')
     } finally {
@@ -52,8 +63,10 @@ export function SearchPage() {
           <SearchResultCard
             key={song.id}
             song={song}
-            onSelect={handleAdd}
-            isLoading={addingId === song.id}
+            onPreview={handlePreview}
+            onAdd={handleAdd}
+            isAdding={addingId === song.id}
+            added={addedIds.has(song.id)}
           />
         ))}
       </div>
