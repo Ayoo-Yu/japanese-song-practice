@@ -45,31 +45,16 @@ if [ ! -f .env ]; then
   cp .env.example .env
   echo ""
   echo "✅ .env 已创建。"
-  echo ""
-  echo "⚙️  网易云音乐登录（可选）"
-  echo "启动开发服务器后，终端会自动显示二维码，用网易云音乐 APP 扫码即可登录。"
-  echo "登录后可播放 VIP 歌曲。不登录也能正常使用其他功能。"
-else
-  echo "✅ .env 已存在，跳过配置"
 fi
 
 # ── Done ──
 echo ""
 echo "========================================="
 echo "   ✅ 准备就绪！"
-echo "=========================================""
+echo "========================================="
 echo ""
-echo "  启动开发服务器:  pnpm dev"
-echo "  生产构建:        pnpm build"
-echo "  类型检查:        npx tsc --noEmit"
+echo "  启动后打开浏览器，点击底部「设置」标签"
+echo "  可以扫码登录网易云音乐（VIP 歌曲需要登录）"
 echo ""
-echo "  首次启动会显示网易云音乐二维码，扫码即可登录。"
-echo ""
-
-# ── Optionally start dev server ──
-read -p "是否现在启动开发服务器？[Y/n] " START_DEV
-if [ "$START_DEV" != "n" ] && [ "$START_DEV" != "N" ]; then
-  echo ""
-  echo "🚀 启动中..."
-  pnpm dev
-fi
+echo "🚀 启动开发服务器..."
+pnpm dev -- --open
