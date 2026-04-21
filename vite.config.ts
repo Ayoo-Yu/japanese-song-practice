@@ -54,11 +54,13 @@ function audioProxy(): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const musicCookie = env.NETEASE_MUSIC_U ? `MUSIC_U=${env.NETEASE_MUSIC_U}` : ''
+  const devPort = Number(env.PORT || 4173)
 
   return {
     plugins: [react(), tailwindcss(), audioProxy(), neteaseQRLogin()],
     server: {
       host: '127.0.0.1',
+      port: Number.isFinite(devPort) ? devPort : 4173,
       proxy: {
         '/api/netease': {
           target: 'https://music.163.com',

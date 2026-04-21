@@ -51,9 +51,10 @@ echo    Setup Complete!
 echo =========================================
 echo.
 echo   NetEase Login: Open Settings page after dev server starts
+echo   Dev Server URL: http://127.0.0.1:4173
 echo.
 
-call pnpm dev -- --open
+call pnpm dev -- --host 127.0.0.1 --port 4173 --open
 
 :done
 echo.
