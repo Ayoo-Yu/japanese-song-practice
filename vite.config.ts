@@ -58,6 +58,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss(), audioProxy(), neteaseQRLogin()],
     server: {
+      host: '127.0.0.1',
       proxy: {
         '/api/netease': {
           target: 'https://music.163.com',

@@ -5,6 +5,7 @@ import { SongHeader } from '../components/song/SongHeader'
 import { AudioPlayer } from '../components/song/AudioPlayer'
 import { LyricsEditor } from '../components/song/LyricsEditor'
 import { usePlayerStore } from '../stores/player-store'
+import { useUIStore } from '../stores/ui-store'
 import { ensureAudioUrl } from '../services/lyrics-service'
 import type { Song, FuriganaToken } from '../types'
 
@@ -33,6 +34,7 @@ export function SongPage() {
   const [showRomaji, setShowRomaji] = useState(true)
   const [showTranslation, setShowTranslation] = useState(true)
   const [showKTV, setShowKTV] = useState(true)
+  const appearance = useUIStore((s) => s.appearance)
 
   useEffect(() => {
     if (song) {
@@ -112,7 +114,18 @@ export function SongPage() {
   const currentLineIndex = findCurrentLine(parsedLines, currentTimeMs, calibrations)
 
   return (
-    <div className="max-w-lg mx-auto pb-8 overflow-x-hidden">
+    <div
+      className="max-w-lg mx-auto pb-8 overflow-x-hidden"
+      style={{
+        ['--lyrics-panel-bg' as string]: toRgba(appearance.lyricsPanelColor, appearance.lyricsPanelOpacity),
+        ['--lyrics-line-base-bg' as string]: toRgba(appearance.lyricsLineColor, appearance.lyricsLineOpacity),
+        ['--lyrics-primary-color' as string]: appearance.lyricsPrimaryTextColor,
+        ['--lyrics-furigana-color' as string]: appearance.lyricsFuriganaColor,
+        ['--ktv-highlight-color' as string]: appearance.ktvHighlightColor,
+        ['--lyrics-secondary-color' as string]: appearance.lyricsSecondaryTextColor,
+        ['--lyrics-muted-color' as string]: appearance.lyricsMutedTextColor,
+      }}
+    >
       <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur-sm p-4 space-y-3">
         <SongHeader
           title={song.title}
@@ -177,6 +190,7 @@ export function SongPage() {
                   isActive ? 'active' : ''
                 }`}
               >
+                <div className="lyrics-line-base" />
                 <div className={`lyrics-line-bg ${isActive ? 'active' : ''}`} />
                 <div className="relative z-10">
                   <KTVLine progress={lineProgress}>
@@ -299,4 +313,18 @@ function getLineWindow(
   const fallbackEnd = lineIndex + 1 < lines.length ? lines[lineIndex + 1].timeMs : start + 5000
   const end = calibration?.endMs ?? fallbackEnd
   return { start, end: Math.max(end, start) }
+}
+
+function toRgba(hex: string | undefined, alpha: number | undefined): string {
+  const safeHexInput = typeof hex === 'string' && hex.trim() ? hex : '#131625'
+  const safeAlpha = typeof alpha === 'number' && Number.isFinite(alpha) ? alpha : 0.68
+  const normalized = safeHexInput.replace('#', '')
+  const safeHex = normalized.length === 3
+    ? normalized.split('').map((char) => char + char).join('')
+    : normalized.padEnd(6, '0').slice(0, 6)
+  const value = Number.parseInt(safeHex, 16)
+  const r = (value >> 16) & 255
+  const g = (value >> 8) & 255
+  const b = value & 255
+  return `rgba(${r}, ${g}, ${b}, ${safeAlpha})`
 }

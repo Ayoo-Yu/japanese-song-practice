@@ -130,6 +130,71 @@ export function SettingsPage() {
           displayValue={`${appearance.brightness.toFixed(2)}x`}
           onChange={(value) => setAppearance({ brightness: value })}
         />
+
+        <div className="pt-2 border-t border-border/60 space-y-4">
+          <div>
+            <h4 className="text-sm font-semibold text-text mb-1">歌词区颜色</h4>
+            <p className="text-sm text-text-secondary">调整歌词面板、渐变、注音和辅助文字颜色。</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <ColorField
+              label="面板颜色"
+              value={appearance.lyricsPanelColor}
+              onChange={(value) => setAppearance({ lyricsPanelColor: value })}
+            />
+            <ColorField
+              label="行底颜色"
+              value={appearance.lyricsLineColor}
+              onChange={(value) => setAppearance({ lyricsLineColor: value })}
+            />
+            <ColorField
+              label="主歌词颜色"
+              value={appearance.lyricsPrimaryTextColor}
+              onChange={(value) => setAppearance({ lyricsPrimaryTextColor: value })}
+            />
+            <ColorField
+              label="片假名注音颜色"
+              value={appearance.lyricsFuriganaColor}
+              onChange={(value) => setAppearance({ lyricsFuriganaColor: value })}
+            />
+            <ColorField
+              label="渐变颜色"
+              value={appearance.ktvHighlightColor}
+              onChange={(value) => setAppearance({ ktvHighlightColor: value })}
+            />
+            <ColorField
+              label="罗马音颜色"
+              value={appearance.lyricsSecondaryTextColor}
+              onChange={(value) => setAppearance({ lyricsSecondaryTextColor: value })}
+            />
+            <ColorField
+              label="翻译颜色"
+              value={appearance.lyricsMutedTextColor}
+              onChange={(value) => setAppearance({ lyricsMutedTextColor: value })}
+            />
+          </div>
+
+          <RangeField
+            label="面板透明度"
+            min={0}
+            max={0.95}
+            step={0.01}
+            value={appearance.lyricsPanelOpacity}
+            displayValue={`${Math.round(appearance.lyricsPanelOpacity * 100)}%`}
+            onChange={(value) => setAppearance({ lyricsPanelOpacity: value })}
+          />
+
+          <RangeField
+            label="行底透明度"
+            min={0}
+            max={0.35}
+            step={0.01}
+            value={appearance.lyricsLineOpacity}
+            displayValue={`${Math.round(appearance.lyricsLineOpacity * 100)}%`}
+            onChange={(value) => setAppearance({ lyricsLineOpacity: value })}
+          />
+        </div>
       </div>
 
       {showLogin && (
@@ -138,6 +203,31 @@ export function SettingsPage() {
         />
       )}
     </div>
+  )
+}
+
+function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="block">
+      <span className="block text-sm font-medium text-text mb-2">{label}</span>
+      <div className="flex items-center gap-3">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-10 w-14 rounded border border-border bg-transparent p-1"
+        />
+        <span className="text-sm text-text-secondary font-mono">{value}</span>
+      </div>
+    </label>
   )
 }
 

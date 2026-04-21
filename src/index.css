@@ -23,7 +23,7 @@
 ruby rt {
   font-size: 0.55em;
   font-weight: 400;
-  color: var(--color-accent);
+  color: var(--lyrics-furigana-color, var(--color-accent));
   letter-spacing: 0.02em;
 }
 
@@ -31,6 +31,7 @@ ruby rt {
   font-size: 1.2rem;
   line-height: 2.2;
   letter-spacing: 0.04em;
+  color: var(--lyrics-primary-color, #ffffff);
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -43,6 +44,9 @@ ruby rt {
   overscroll-behavior: contain;
   scroll-behavior: smooth;
   scroll-padding-block: 35%;
+  border-radius: 0.75rem;
+  background: var(--lyrics-panel-bg, rgba(19, 22, 37, 0.68));
+  backdrop-filter: blur(10px);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.4) 10%, black 18%, black 78%, rgba(0, 0, 0, 0.45) 88%, transparent 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.4) 10%, black 18%, black 78%, rgba(0, 0, 0, 0.45) 88%, transparent 100%);
   scrollbar-width: none;
@@ -56,6 +60,13 @@ ruby rt {
   color: var(--color-accent);
   font-size: 1.5rem;
   transform: scale(1.02);
+}
+
+.lyrics-line-base {
+  position: absolute;
+  inset: 0.15rem 0;
+  border-radius: 0.5rem;
+  background: var(--lyrics-line-base-bg, rgba(255, 255, 255, 0.08));
 }
 
 .lyrics-line-bg {
@@ -75,14 +86,14 @@ ruby rt {
 
 .lyrics-line .romaji {
   font-size: 0.75rem;
-  color: var(--color-text-muted);
+  color: var(--lyrics-secondary-color, #eef1ff);
   letter-spacing: 0.08em;
   line-height: 1.4;
 }
 
 .lyrics-line .translation {
   font-size: 0.8rem;
-  color: var(--color-text-muted);
+  color: var(--lyrics-muted-color, #d7dbf5);
   margin-top: 0.15rem;
   line-height: 1.4;
 }
@@ -122,5 +133,5 @@ ruby rt {
 /* KTV progress: force accent color on overlay */
 .ktv-highlight,
 .ktv-highlight * {
-  color: var(--color-accent) !important;
+  color: var(--ktv-highlight-color, var(--color-accent)) !important;
 }
