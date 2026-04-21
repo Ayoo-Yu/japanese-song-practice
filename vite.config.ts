@@ -3,7 +3,15 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import http from 'http'
 import https from 'https'
+import fs from 'fs'
+import path from 'path'
+import { createRequire } from 'module'
 import { neteaseQRLogin } from './src/lib/netease-qr-login'
+
+const require = createRequire(import.meta.url)
+const kuromojiDictDir = path.join(path.dirname(require.resolve('kuromoji')), '..', 'dict')
+const kuromojiBrowserFile = path.join(path.dirname(require.resolve('kuromoji')), '..', 'build', 'kuromoji.js')
+const zlibBrowserFile = path.join(path.dirname(require.resolve('zlibjs')), '..', 'bin', 'zlib.min.js')
 
 function audioProxy(): Plugin {
   return {
@@ -51,13 +59,65 @@ function audioProxy(): Plugin {
   }
 }
 
+function kuromojiDictPlugin(): Plugin {
+  return {
+    name: 'kuromoji-dict',
+    configureServer(server) {
+      server.middlewares.use('/kuromoji-dict', (req, res) => {
+        const reqPath = (req.url ?? '/').split('?')[0].replace(/^\/+/, '')
+        const filePath = path.join(kuromojiDictDir, reqPath)
+        if (!filePath.startsWith(kuromojiDictDir) || !fs.existsSync(filePath)) {
+          res.statusCode = 404
+          res.end('Dictionary file not found')
+          return
+        }
+
+        res.setHeader('Content-Type', 'application/octet-stream')
+        fs.createReadStream(filePath).pipe(res)
+      })
+
+      server.middlewares.use('/vendor/kuromoji.js', (_req, res) => {
+        res.setHeader('Content-Type', 'application/javascript')
+        fs.createReadStream(kuromojiBrowserFile).pipe(res)
+      })
+
+      server.middlewares.use('/vendor/zlib.min.js', (_req, res) => {
+        res.setHeader('Content-Type', 'application/javascript')
+        fs.createReadStream(zlibBrowserFile).pipe(res)
+      })
+    },
+    generateBundle() {
+      for (const filename of fs.readdirSync(kuromojiDictDir)) {
+        const filePath = path.join(kuromojiDictDir, filename)
+        this.emitFile({
+          type: 'asset',
+          fileName: `kuromoji-dict/${filename}`,
+          source: fs.readFileSync(filePath),
+        })
+      }
+
+      this.emitFile({
+        type: 'asset',
+        fileName: 'vendor/kuromoji.js',
+        source: fs.readFileSync(kuromojiBrowserFile),
+      })
+
+      this.emitFile({
+        type: 'asset',
+        fileName: 'vendor/zlib.min.js',
+        source: fs.readFileSync(zlibBrowserFile),
+      })
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const musicCookie = env.NETEASE_MUSIC_U ? `MUSIC_U=${env.NETEASE_MUSIC_U}` : ''
   const devPort = Number(env.PORT || 4173)
 
   return {
-    plugins: [react(), tailwindcss(), audioProxy(), neteaseQRLogin()],
+    plugins: [react(), tailwindcss(), audioProxy(), kuromojiDictPlugin(), neteaseQRLogin()],
     server: {
       host: '127.0.0.1',
       port: Number.isFinite(devPort) ? devPort : 4173,

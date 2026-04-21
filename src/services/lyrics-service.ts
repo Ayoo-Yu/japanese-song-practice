@@ -1,6 +1,6 @@
 import { getLyric, getSongUrl, getSongDetail } from '../lib/netease'
 import { parseLrc } from '../lib/lrc-parser'
-import { computeFuriganaForLine, tokensToHtml } from '../lib/furigana-service'
+import { computeFuriganaForLine, tokensToHtml, FURIGANA_VERSION } from '../lib/furigana-service'
 import { getSongByNeteaseId, saveSong, updateAudioUrl } from './song-service'
 import type { Song, StageLine, ParsedLine, FuriganaLine } from '../types'
 
@@ -56,6 +56,7 @@ export async function getAnnotatedSong(neteaseId: number, preview = false): Prom
     && cached.stageLyrics[1]?.some((l) => l.romaji)
     && cached.stageLyrics[3]?.some((l) => l.translation && l.translation.endsWith('…'))
     && cached.furiganaData && cached.furiganaData.length > 0
+    && cached.furiganaVersion === FURIGANA_VERSION
   if (hasGoodCache) {
     if (!cached.title || !cached.artist) {
       const detail = await getSongDetail(neteaseId)
@@ -88,7 +89,7 @@ export async function getAnnotatedSong(neteaseId: number, preview = false): Prom
   for (let i = 0; i < parsedLines.length; i++) {
     const line = parsedLines[i]
     const romaji = romajiMap.get(line.timeMs) ?? ''
-    const tokens = computeFuriganaForLine(line.text, romaji)
+    const tokens = await computeFuriganaForLine(line.text, romaji)
     if (tokens) {
       furiganaData.push({ lineIndex: i, words: tokens })
     }
@@ -132,6 +133,7 @@ export async function getAnnotatedSong(neteaseId: number, preview = false): Prom
     romajiLines,
     translationLines,
     translation: parsedLines.map((l) => translationMap.get(l.timeMs) ?? '').join('\n'),
+    furiganaVersion: FURIGANA_VERSION,
     audioUrl: songUrl ?? (base as Song).audioUrl,
     audioUrlFetchedAt: songUrl ? new Date().toISOString() : (base as Song).audioUrlFetchedAt,
   }

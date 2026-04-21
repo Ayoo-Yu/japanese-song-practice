@@ -1,8 +1,11 @@
-import CryptoJS from 'crypto-js'
 import forge from 'node-forge'
 import fs from 'fs'
 import path from 'path'
+import { createRequire } from 'module'
 import type { Plugin } from 'vite'
+
+const require = createRequire(import.meta.url)
+const CryptoJS = require('crypto-js')
 
 const PRESET_KEY = '0CoJUm6Qyw8W8jud'
 const IV = '0102030405060708'

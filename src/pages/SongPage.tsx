@@ -118,12 +118,14 @@ export function SongPage() {
       className="max-w-lg mx-auto pb-8 overflow-x-hidden"
       style={{
         ['--lyrics-panel-bg' as string]: toRgba(appearance.lyricsPanelColor, appearance.lyricsPanelOpacity),
-        ['--lyrics-line-base-bg' as string]: toRgba(appearance.lyricsLineColor, appearance.lyricsLineOpacity),
-        ['--lyrics-primary-color' as string]: appearance.lyricsPrimaryTextColor,
-        ['--lyrics-furigana-color' as string]: appearance.lyricsFuriganaColor,
-        ['--ktv-highlight-color' as string]: appearance.ktvHighlightColor,
-        ['--lyrics-secondary-color' as string]: appearance.lyricsSecondaryTextColor,
-        ['--lyrics-muted-color' as string]: appearance.lyricsMutedTextColor,
+        ['--lyrics-line-base-bg' as string]: toRgba(appearance.lyricsTextColor, appearance.lyricsLineOpacity),
+        ['--lyrics-primary-color' as string]: appearance.lyricsTextColor,
+        ['--lyrics-accent-color' as string]: appearance.lyricsAccentColor,
+        ['--lyrics-furigana-color' as string]: appearance.lyricsAccentColor,
+        ['--ktv-highlight-color' as string]: appearance.lyricsAccentColor,
+        ['--lyrics-active-bg' as string]: toRgba(appearance.lyricsAccentColor, 0.14),
+        ['--lyrics-secondary-color' as string]: appearance.lyricsSubtextColor,
+        ['--lyrics-muted-color' as string]: appearance.lyricsSubtextColor,
       }}
     >
       <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur-sm p-4 space-y-3">

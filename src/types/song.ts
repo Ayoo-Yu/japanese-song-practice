@@ -19,6 +19,7 @@ export interface Song {
   romajiLines?: Record<number, string>
   translationLines?: Record<number, string>
   translation?: string
+  furiganaVersion?: number
   // Per-line KTV gradient timing overrides, keyed by line index
   calibrations?: Record<number, { startMs: number; endMs: number }>
 }

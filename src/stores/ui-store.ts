@@ -9,13 +9,10 @@ export interface AppearanceSettings {
   brightness: number
   lyricsPanelColor: string
   lyricsPanelOpacity: number
-  lyricsLineColor: string
   lyricsLineOpacity: number
-  lyricsPrimaryTextColor: string
-  lyricsFuriganaColor: string
-  ktvHighlightColor: string
-  lyricsSecondaryTextColor: string
-  lyricsMutedTextColor: string
+  lyricsTextColor: string
+  lyricsAccentColor: string
+  lyricsSubtextColor: string
 }
 
 interface UIState {
@@ -30,15 +27,12 @@ const defaultAppearance: AppearanceSettings = {
   blurPx: 0.5,
   saturation: 1,
   brightness: 1,
-  lyricsPanelColor: '#131625',
+  lyricsPanelColor: '#0f172a',
   lyricsPanelOpacity: 0.68,
-  lyricsLineColor: '#ffffff',
   lyricsLineOpacity: 0.08,
-  lyricsPrimaryTextColor: '#ffffff',
-  lyricsFuriganaColor: '#a29bfe',
-  ktvHighlightColor: '#6c5ce7',
-  lyricsSecondaryTextColor: '#eef1ff',
-  lyricsMutedTextColor: '#d7dbf5',
+  lyricsTextColor: '#ffffff',
+  lyricsAccentColor: '#67e8f9',
+  lyricsSubtextColor: '#dbeafe',
 }
 
 export const useUIStore = create<UIState>()(

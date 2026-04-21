@@ -1,5 +1,5 @@
 import type { Song, FuriganaLine } from '../types'
-import { computeFuriganaForLine } from '../lib/furigana-service'
+import { computeFuriganaForLine, FURIGANA_VERSION } from '../lib/furigana-service'
 import { buildStageLyrics } from './lyrics-service'
 
 const STORAGE_KEY = 'jpsong_songs'
@@ -96,7 +96,7 @@ export async function updateLyrics(
   for (let i = 0; i < lrcParsed.length; i++) {
     const line = lrcParsed[i]
     const romaji = romajiMap.get(line.timeMs) ?? ''
-    const tokens = computeFuriganaForLine(line.text, romaji)
+    const tokens = await computeFuriganaForLine(line.text, romaji)
     if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
   }
 
@@ -109,6 +109,7 @@ export async function updateLyrics(
     translationLines,
     furiganaData,
     stageLyrics,
+    furiganaVersion: FURIGANA_VERSION,
   }
 
   return saveSong(updated)

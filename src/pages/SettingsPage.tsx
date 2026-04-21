@@ -134,7 +134,7 @@ export function SettingsPage() {
         <div className="pt-2 border-t border-border/60 space-y-4">
           <div>
             <h4 className="text-sm font-semibold text-text mb-1">歌词区颜色</h4>
-            <p className="text-sm text-text-secondary">调整歌词面板、渐变、注音和辅助文字颜色。</p>
+            <p className="text-sm text-text-secondary">收紧成 4 个核心颜色，其他元素会自动跟随，配色更统一。</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -144,34 +144,19 @@ export function SettingsPage() {
               onChange={(value) => setAppearance({ lyricsPanelColor: value })}
             />
             <ColorField
-              label="行底颜色"
-              value={appearance.lyricsLineColor}
-              onChange={(value) => setAppearance({ lyricsLineColor: value })}
+              label="主文字颜色"
+              value={appearance.lyricsTextColor}
+              onChange={(value) => setAppearance({ lyricsTextColor: value })}
             />
             <ColorField
-              label="主歌词颜色"
-              value={appearance.lyricsPrimaryTextColor}
-              onChange={(value) => setAppearance({ lyricsPrimaryTextColor: value })}
+              label="辅助文字颜色"
+              value={appearance.lyricsSubtextColor}
+              onChange={(value) => setAppearance({ lyricsSubtextColor: value })}
             />
             <ColorField
-              label="片假名注音颜色"
-              value={appearance.lyricsFuriganaColor}
-              onChange={(value) => setAppearance({ lyricsFuriganaColor: value })}
-            />
-            <ColorField
-              label="渐变颜色"
-              value={appearance.ktvHighlightColor}
-              onChange={(value) => setAppearance({ ktvHighlightColor: value })}
-            />
-            <ColorField
-              label="罗马音颜色"
-              value={appearance.lyricsSecondaryTextColor}
-              onChange={(value) => setAppearance({ lyricsSecondaryTextColor: value })}
-            />
-            <ColorField
-              label="翻译颜色"
-              value={appearance.lyricsMutedTextColor}
-              onChange={(value) => setAppearance({ lyricsMutedTextColor: value })}
+              label="强调色"
+              value={appearance.lyricsAccentColor}
+              onChange={(value) => setAppearance({ lyricsAccentColor: value })}
             />
           </div>
 

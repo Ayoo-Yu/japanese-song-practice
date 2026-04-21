@@ -1,13 +1,16 @@
 import { toHiragana as wanakanaToHiragana } from 'wanakana'
-import { alignFurigana } from './align-furigana'
+import { alignFurigana, alignFuriganaFallback } from './align-furigana'
+import { getJapaneseTokenizer } from './japanese-tokenizer'
 import type { FuriganaToken } from '../types'
+
+export const FURIGANA_VERSION = 2
 
 /**
  * Compute furigana tokens for a single lyric line.
  * Returns null if alignment fails (romaji doesn't match original).
  */
-export function computeFuriganaForLine(original: string, romaji: string): FuriganaToken[] | null {
-  if (!original.trim() || !romaji.trim()) return null
+export async function computeFuriganaForLine(original: string, romaji: string): Promise<FuriganaToken[] | null> {
+  if (!original.trim()) return null
 
   // Strip inline furigana annotations like 宇宙（そら）→ 宇宙
   // The romaji already provides the reading, so these parenthetical hints are redundant
@@ -20,6 +23,13 @@ export function computeFuriganaForLine(original: string, romaji: string): Furiga
       return match
     },
   )
+
+  const tokenized = await computeFuriganaWithTokenizer(cleaned)
+  if (tokenized?.some((token) => token.isKanji && token.reading)) {
+    return tokenized
+  }
+
+  if (!romaji.trim()) return null
 
   // Find English words and numbers — these must not be converted to kana
   const nonJapanese = new Set(
@@ -34,7 +44,76 @@ export function computeFuriganaForLine(original: string, romaji: string): Furiga
   })
 
   const hiragana = converted.join('')
-  return alignFurigana(cleaned, hiragana)
+  return alignFurigana(cleaned, hiragana) ?? alignFuriganaFallback(cleaned, hiragana)
+}
+
+async function computeFuriganaWithTokenizer(original: string): Promise<FuriganaToken[] | null> {
+  try {
+    const tokenizer = await getJapaneseTokenizer()
+    const tokens = tokenizer.tokenize(original)
+    const result: FuriganaToken[] = []
+
+    for (const token of tokens) {
+      const surface = token.surface_form
+      if (!surface) continue
+
+      const reading = token.reading && token.reading !== '*'
+        ? wanakanaToHiragana(token.reading)
+        : ''
+
+      if (containsKanji(surface) && reading) {
+        const aligned = alignFurigana(surface, reading) ?? alignFuriganaFallback(surface, reading)
+        if (aligned.some((item) => item.isKanji && item.reading)) {
+          result.push(...aligned)
+          continue
+        }
+
+        if (isAllKanji(surface)) {
+          result.push({ surface, reading, isKanji: true })
+          continue
+        }
+      }
+
+      result.push({ surface, reading: surface, isKanji: false })
+    }
+
+    return mergeAdjacentPlainTokens(result)
+  } catch {
+    return null
+  }
+}
+
+function mergeAdjacentPlainTokens(tokens: FuriganaToken[]): FuriganaToken[] {
+  const merged: FuriganaToken[] = []
+  for (const token of tokens) {
+    const prev = merged[merged.length - 1]
+    if (
+      prev &&
+      !prev.isKanji &&
+      !token.isKanji &&
+      prev.reading === prev.surface &&
+      token.reading === token.surface
+    ) {
+      prev.surface += token.surface
+      prev.reading += token.reading
+      continue
+    }
+    merged.push({ ...token })
+  }
+  return merged
+}
+
+function containsKanji(text: string): boolean {
+  return [...text].some((char) => isKanji(char))
+}
+
+function isAllKanji(text: string): boolean {
+  return [...text].every((char) => isKanji(char))
+}
+
+function isKanji(char: string): boolean {
+  const code = char.codePointAt(0)!
+  return code === 0x3005 || (code >= 0x4e00 && code <= 0x9faf) || (code >= 0x3400 && code <= 0x4dbf)
 }
 
 /**

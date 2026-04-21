@@ -57,7 +57,7 @@ ruby rt {
 }
 
 .lyrics-line.active {
-  color: var(--color-accent);
+  color: var(--lyrics-accent-color, var(--color-accent));
   font-size: 1.5rem;
   transform: scale(1.02);
 }
@@ -73,7 +73,7 @@ ruby rt {
   position: absolute;
   inset: 0.15rem 0;
   border-radius: 0.5rem;
-  background: var(--color-accent-bg);
+  background: var(--lyrics-active-bg, var(--color-accent-bg));
   opacity: 0;
   transform: scale(0.985);
   transition: opacity 0.24s ease-out, transform 0.32s ease-out;
@@ -94,6 +94,7 @@ ruby rt {
 .lyrics-line .translation {
   font-size: 0.8rem;
   color: var(--lyrics-muted-color, #d7dbf5);
+  opacity: 0.86;
   margin-top: 0.15rem;
   line-height: 1.4;
 }

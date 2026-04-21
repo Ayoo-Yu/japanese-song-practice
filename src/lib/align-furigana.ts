@@ -14,6 +14,84 @@ export function alignFurigana(original: string, hiraganaReading: string): Furiga
   return null
 }
 
+/**
+ * Best-effort alignment that preserves any kanji readings we can recover
+ * even when the full-line romaji is imperfect.
+ */
+export function alignFuriganaFallback(original: string, hiraganaReading: string): FuriganaToken[] {
+  const tokens: FuriganaToken[] = []
+  let oi = 0
+  let ri = 0
+
+  while (oi < original.length) {
+    const oc = original[oi]
+
+    if (!isPhonetic(oc)) {
+      if (ri < hiraganaReading.length && hiraganaReading[ri] === oc) ri++
+      tokens.push({ surface: oc, reading: oc, isKanji: false })
+      oi++
+      continue
+    }
+
+    if (isKana(oc)) {
+      const matchedIndex = findCompatibleKanaIndex(hiraganaReading, ri, oc, 3)
+      if (matchedIndex >= 0) ri = matchedIndex + 1
+      tokens.push({ surface: oc, reading: normalizeKana(oc), isKanji: false })
+      oi++
+      continue
+    }
+
+    let end = oi
+    while (end < original.length && isKanji(original[end])) end++
+    const surface = original.slice(oi, end)
+
+    const repeatedReading = COMMON_ITERATION_READINGS[surface]
+    if (repeatedReading) {
+      tokens.push({ surface, reading: repeatedReading, isKanji: true })
+      ri = advanceReadingByKana(hiraganaReading, ri, repeatedReading)
+      oi = end
+      continue
+    }
+
+    const anchor = findNextKanaAnchor(original, end)
+    if (!anchor) {
+      const tail = hiraganaReading.slice(ri)
+      if (tail && isPureKana(tail)) {
+        tokens.push({ surface, reading: tail, isKanji: true })
+        ri = hiraganaReading.length
+      } else {
+        tokens.push({ surface, reading: '', isKanji: false })
+      }
+      oi = end
+      continue
+    }
+
+    if (hasKanjiBeforeIndex(original, end, anchor.index)) {
+      tokens.push({ surface, reading: '', isKanji: false })
+      oi = end
+      continue
+    }
+
+    const anchorIndex = findCompatibleKanaIndex(hiraganaReading, ri, anchor.char, 12)
+    if (anchorIndex <= ri) {
+      tokens.push({ surface, reading: '', isKanji: false })
+      oi = end
+      continue
+    }
+
+    const candidate = hiraganaReading.slice(ri, anchorIndex)
+    if (candidate && isPureKana(candidate)) {
+      tokens.push({ surface, reading: candidate, isKanji: true })
+      ri = anchorIndex
+    } else {
+      tokens.push({ surface, reading: '', isKanji: false })
+    }
+    oi = end
+  }
+
+  return mergeAdjacentPlainTokens(tokens)
+}
+
 function tryAlign(orig: string, oi: number, read: string, ri: number, out: FuriganaToken[]): boolean {
   if (oi >= orig.length) return true
 
@@ -41,6 +119,13 @@ function tryAlign(orig: string, oi: number, read: string, ri: number, out: Furig
     while (end < orig.length && isKanji(orig[end])) end++
     const surface = orig.slice(oi, end)
 
+    const repeatedReading = COMMON_ITERATION_READINGS[surface]
+    if (repeatedReading) {
+      if (!readingMatchesAt(read, ri, repeatedReading)) return false
+      out.push({ surface, reading: repeatedReading, isKanji: true })
+      return tryAlign(orig, end, read, ri + repeatedReading.length, out)
+    }
+
     const maxLen = read.length - ri
     for (let len = maxLen; len >= 1; len--) {
       const candidate = read.slice(ri, ri + len)
@@ -59,6 +144,66 @@ function tryAlign(orig: string, oi: number, read: string, ri: number, out: Furig
   return tryAlign(orig, oi + 1, read, ri, out)
 }
 
+function mergeAdjacentPlainTokens(tokens: FuriganaToken[]): FuriganaToken[] {
+  const merged: FuriganaToken[] = []
+  for (const token of tokens) {
+    const prev = merged[merged.length - 1]
+    if (
+      prev &&
+      !prev.isKanji &&
+      !token.isKanji &&
+      prev.reading === prev.surface &&
+      token.reading === token.surface
+    ) {
+      prev.surface += token.surface
+      prev.reading += token.reading
+      continue
+    }
+    merged.push({ ...token })
+  }
+  return merged
+}
+
+function findNextKanaAnchor(orig: string, start: number): { index: number; char: string } | null {
+  for (let i = start; i < orig.length; i++) {
+    if (isKana(orig[i])) return { index: i, char: orig[i] }
+  }
+  return null
+}
+
+function hasKanjiBeforeIndex(orig: string, start: number, end: number): boolean {
+  for (let i = start; i < end; i++) {
+    if (isKanji(orig[i])) return true
+  }
+  return false
+}
+
+function findCompatibleKanaIndex(read: string, start: number, kana: string, maxLookahead: number): number {
+  const end = Math.min(read.length, start + maxLookahead + 1)
+  for (let i = start; i < end; i++) {
+    if (kanaCompatible(kana, read[i])) return i
+  }
+  return -1
+}
+
+function advanceReadingByKana(read: string, start: number, kana: string): number {
+  let ri = start
+  for (const ch of kana) {
+    const matchedIndex = findCompatibleKanaIndex(read, ri, ch, 2)
+    if (matchedIndex < 0) return start
+    ri = matchedIndex + 1
+  }
+  return ri
+}
+
+function readingMatchesAt(read: string, start: number, kana: string): boolean {
+  if (start + kana.length > read.length) return false
+  for (let i = 0; i < kana.length; i++) {
+    if (!kanaCompatible(kana[i], read[start + i])) return false
+  }
+  return true
+}
+
 // --- Character classification ---
 
 function isPhonetic(ch: string): boolean {
@@ -66,6 +211,7 @@ function isPhonetic(ch: string): boolean {
   return (
     (c >= 0x3040 && c <= 0x309f) || // hiragana
     (c >= 0x30a0 && c <= 0x30ff) || // katakana
+    c === 0x3005 ||                 // ideographic iteration mark 々
     (c >= 0x4e00 && c <= 0x9faf) || // kanji
     (c >= 0x3400 && c <= 0x4dbf)    // rare kanji
   )
@@ -82,7 +228,7 @@ function isKana(ch: string): boolean {
 
 function isKanji(ch: string): boolean {
   const c = ch.codePointAt(0)!
-  return (c >= 0x4e00 && c <= 0x9faf) || (c >= 0x3400 && c <= 0x4dbf)
+  return c === 0x3005 || (c >= 0x4e00 && c <= 0x9faf) || (c >= 0x3400 && c <= 0x4dbf)
 }
 
 function isPureKana(str: string): boolean {
@@ -135,6 +281,16 @@ function isVowelKana(ch: string): boolean {
 
 const SMALL_KANA = 'ぁぃぅぇぉゃゅょっゎヶ'
 const LARGE_KANA = 'あいうえおやゆよつわけ'
+
+const COMMON_ITERATION_READINGS: Record<string, string> = {
+  '日々': 'ひび',
+  '人々': 'ひとびと',
+  '時々': 'ときどき',
+  '様々': 'さまざま',
+  '色々': 'いろいろ',
+  '我々': 'われわれ',
+  '刻々': 'こくこく',
+}
 
 function expandSmallKana(ch: string): string {
   const i = SMALL_KANA.indexOf(ch)

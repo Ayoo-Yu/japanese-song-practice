@@ -10,7 +10,7 @@ export function AppLayout() {
   return (
     <div className="relative flex flex-col min-h-svh text-text font-sans overflow-hidden">
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
         style={{
           backgroundImage: `url(${bgUrl})`,
           filter: `saturate(${appearance.saturation}) brightness(${appearance.brightness}) blur(${appearance.blurPx}px)`,
@@ -18,7 +18,7 @@ export function AppLayout() {
         }}
       />
       <div
-        className="absolute inset-0"
+        className="fixed inset-0 pointer-events-none"
         style={{ backgroundColor: `rgba(255, 255, 255, ${appearance.overlayOpacity})` }}
       />
       <main className="relative z-10 flex-1 pb-20">

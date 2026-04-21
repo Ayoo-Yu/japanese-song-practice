@@ -14,6 +14,7 @@ dist-ssr
 
 # Environment variables (contains secrets)
 .env
+.env.backup
 
 # Kuromoji dictionary (not needed, using NetEase native lyrics)
 public/kuromoji-dict/

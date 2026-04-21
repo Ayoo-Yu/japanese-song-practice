@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchSongs } from '../lib/netease'
 import { createSongFromSearch } from '../services/lyrics-service'
-import { getSongByNeteaseId } from '../services/song-service'
+import { getSongByNeteaseId, listUserSongs } from '../services/song-service'
 import { SearchBar } from '../components/search/SearchBar'
 import { SearchResultCard } from '../components/search/SearchResultCard'
 import type { NeteaseSearchResult } from '../types'
@@ -21,6 +21,9 @@ export function SearchPage() {
     try {
       const songs = await searchSongs(query)
       setResults(songs)
+      const userSongs = await listUserSongs()
+      const existingIds = new Set(userSongs.map((song) => song.neteaseId))
+      setAddedIds(existingIds)
       if (songs.length === 0) setError('没有找到相关歌曲')
     } catch {
       setError('搜索失败，请检查网络连接')
