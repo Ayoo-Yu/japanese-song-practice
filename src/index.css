@@ -27,6 +27,22 @@ ruby rt {
   letter-spacing: 0.02em;
 }
 
+.furigana-medium {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: color-mix(in srgb, var(--lyrics-furigana-color, var(--color-accent)) 70%, transparent);
+}
+
+.furigana-low {
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--color-warning);
+}
+
+.furigana-saved {
+  background: color-mix(in srgb, var(--lyrics-accent-color, var(--color-accent)) 16%, transparent);
+}
+
 .lyrics-line {
   font-size: 1.2rem;
   line-height: 2.2;

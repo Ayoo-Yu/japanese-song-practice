@@ -44,7 +44,16 @@ export async function computeFuriganaForLine(original: string, romaji: string): 
   })
 
   const hiragana = converted.join('')
-  return alignFurigana(cleaned, hiragana) ?? alignFuriganaFallback(cleaned, hiragana)
+  const strict = alignFurigana(cleaned, hiragana)
+  if (strict) {
+    return strict.map((token) => token.isKanji
+      ? { ...token, confidence: 'medium', source: 'romaji_strict' as const }
+      : token)
+  }
+
+  return alignFuriganaFallback(cleaned, hiragana).map((token) => token.isKanji && token.reading
+    ? { ...token, confidence: 'low', source: 'romaji_fallback' as const }
+    : token)
 }
 
 async function computeFuriganaWithTokenizer(original: string): Promise<FuriganaToken[] | null> {
@@ -64,12 +73,14 @@ async function computeFuriganaWithTokenizer(original: string): Promise<FuriganaT
       if (containsKanji(surface) && reading) {
         const aligned = alignFurigana(surface, reading) ?? alignFuriganaFallback(surface, reading)
         if (aligned.some((item) => item.isKanji && item.reading)) {
-          result.push(...aligned)
+          result.push(...aligned.map((item) => item.isKanji
+            ? { ...item, confidence: 'high' as const, source: 'tokenizer' as const }
+            : item))
           continue
         }
 
         if (isAllKanji(surface)) {
-          result.push({ surface, reading, isKanji: true })
+          result.push({ surface, reading, isKanji: true, confidence: 'medium' as const, source: 'tokenizer' as const })
           continue
         }
       }

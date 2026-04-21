@@ -47,6 +47,8 @@ export interface FuriganaToken {
   surface: string
   reading: string
   isKanji: boolean
+  confidence?: 'high' | 'medium' | 'low'
+  source?: 'tokenizer' | 'romaji_strict' | 'romaji_fallback'
 }
 
 export interface RomajiLine {

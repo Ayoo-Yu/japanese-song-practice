@@ -1,14 +1,24 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { listUserSongs, deleteSong } from '../services/song-service'
-import type { Song } from '../types'
+import { listSavedLines, listSavedWords, removeSavedLine, removeSavedWord } from '../services/collections-service'
+import type { Song, SavedLine, SavedWord } from '../types'
 
 export function LibraryPage() {
   const [songs, setSongs] = useState<Song[]>([])
+  const [savedWords, setSavedWords] = useState<SavedWord[]>([])
+  const [savedLines, setSavedLines] = useState<SavedLine[]>([])
   const [managing, setManaging] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [tab, setTab] = useState<'songs' | 'words' | 'lines'>('songs')
+  const [wordQuery, setWordQuery] = useState('')
+  const [lineQuery, setLineQuery] = useState('')
 
-  const reload = () => listUserSongs().then(setSongs)
+  const reload = () => {
+    listUserSongs().then(setSongs)
+    listSavedWords().then(setSavedWords)
+    listSavedLines().then(setSavedLines)
+  }
 
   useEffect(() => { reload() }, [])
 
@@ -18,11 +28,35 @@ export function LibraryPage() {
     reload()
   }
 
+  const filteredWords = savedWords.filter((word) => {
+    const query = wordQuery.trim().toLowerCase()
+    if (!query) return true
+    return [
+      word.surface,
+      word.reading,
+      word.lineText,
+      word.songTitle,
+      word.artist,
+    ].some((value) => value.toLowerCase().includes(query))
+  })
+
+  const filteredLines = savedLines.filter((line) => {
+    const query = lineQuery.trim().toLowerCase()
+    if (!query) return true
+    return [
+      line.lineText,
+      line.romaji ?? '',
+      line.translation ?? '',
+      line.songTitle,
+      line.artist,
+    ].some((value) => value.toLowerCase().includes(query))
+  })
+
   return (
     <div className="p-6 max-w-lg mx-auto">
       <div className="flex items-center justify-between gap-4 mb-6 rounded-lg bg-surface/68 backdrop-blur-sm px-4 py-3">
         <h2 className="text-2xl font-bold text-text">我的曲库</h2>
-        {songs.length > 0 && (
+        {tab === 'songs' && songs.length > 0 && (
           <button
             onClick={() => { setManaging(!managing); setConfirmId(null) }}
             className={`text-sm font-medium px-3 py-1 rounded-lg transition-colors ${
@@ -36,7 +70,13 @@ export function LibraryPage() {
         )}
       </div>
 
-      {songs.length === 0 ? (
+      <div className="flex gap-2 mb-6">
+        <LibraryTab active={tab === 'songs'} onClick={() => setTab('songs')}>曲库</LibraryTab>
+        <LibraryTab active={tab === 'words'} onClick={() => setTab('words')}>生词本</LibraryTab>
+        <LibraryTab active={tab === 'lines'} onClick={() => setTab('lines')}>收藏句</LibraryTab>
+      </div>
+
+      {tab === 'songs' ? (songs.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-text-muted mb-4">还没有添加歌曲</p>
           <Link
@@ -105,7 +145,126 @@ export function LibraryPage() {
             </div>
           ))}
         </div>
+      )) : tab === 'words' ? (
+        savedWords.length === 0 ? (
+          <EmptyCollection text="还没有收藏单词" />
+        ) : (
+          <div className="space-y-3">
+            <input
+              value={wordQuery}
+              onChange={(e) => setWordQuery(e.target.value)}
+              placeholder="筛选单词、读音、歌词或歌曲"
+              className="w-full rounded-lg border border-border bg-surface/82 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+            />
+            {filteredWords.length === 0 ? (
+              <EmptyCollection text="没有匹配的生词" />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {filteredWords.map((word) => (
+                  <div key={word.id} className="p-4 rounded-xl bg-surface-alt">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-lg font-semibold text-text">{word.surface}</div>
+                        <div className="text-sm text-accent">{word.reading}</div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Link
+                          to={`/song/${word.neteaseId}`}
+                          className="text-xs font-medium px-3 py-1 rounded-lg bg-surface text-text-secondary"
+                        >
+                          去歌曲
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await removeSavedWord(word.id)
+                            reload()
+                          }}
+                          className="text-xs font-medium px-3 py-1 rounded-lg bg-red-500/10 text-red-500"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-sm text-text truncate">{word.lineText}</p>
+                    <p className="mt-1 text-xs text-text-secondary truncate">{word.songTitle} · {word.artist}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      ) : (
+        savedLines.length === 0 ? (
+          <EmptyCollection text="还没有收藏句子" />
+        ) : (
+          <div className="space-y-3">
+            <input
+              value={lineQuery}
+              onChange={(e) => setLineQuery(e.target.value)}
+              placeholder="筛选句子、罗马音、翻译或歌曲"
+              className="w-full rounded-lg border border-border bg-surface/82 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+            />
+            {filteredLines.length === 0 ? (
+              <EmptyCollection text="没有匹配的收藏句" />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {filteredLines.map((line) => (
+                  <div key={line.id} className="p-4 rounded-xl bg-surface-alt">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-text font-medium">{line.lineText}</p>
+                        {line.romaji && <p className="mt-1 text-sm text-text-secondary">{line.romaji}</p>}
+                        {line.translation && <p className="mt-1 text-sm text-text-muted">{line.translation}</p>}
+                        <p className="mt-2 text-xs text-text-secondary truncate">{line.songTitle} · {line.artist}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <Link
+                          to={`/song/${line.neteaseId}`}
+                          className="text-xs font-medium px-3 py-1 rounded-lg bg-surface text-text-secondary"
+                        >
+                          去歌曲
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await removeSavedLine(line.id)
+                            reload()
+                          }}
+                          className="text-xs font-medium px-3 py-1 rounded-lg bg-red-500/10 text-red-500"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
       )}
+    </div>
+  )
+}
+
+function LibraryTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+        active ? 'bg-accent/15 text-accent border border-accent/30' : 'bg-surface-alt text-text-secondary'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function EmptyCollection({ text }: { text: string }) {
+  return (
+    <div className="text-center py-16">
+      <p className="text-text-muted">{text}</p>
     </div>
   )
 }
