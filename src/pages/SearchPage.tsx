@@ -55,7 +55,7 @@ export function SearchPage() {
   }
 
   return (
-    <div className="p-6 max-w-lg mx-auto">
+    <div className="page-shell p-6">
       <div className="mb-6 rounded-lg bg-surface/68 backdrop-blur-sm px-4 py-3">
         <h2 className="text-2xl font-bold text-text">搜索歌曲</h2>
       </div>

@@ -20,9 +20,29 @@
   --font-mono: 'SF Mono', ui-monospace, monospace;
 }
 
+html {
+  font-size: 18px;
+}
+
+body {
+  min-width: 360px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 19px;
+  }
+}
+
+.page-shell {
+  width: min(calc(100% - 1.5rem), 46rem);
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
 ruby rt {
-  font-size: 0.55em;
-  font-weight: 400;
+  font-size: 0.62em;
+  font-weight: 500;
   color: var(--lyrics-furigana-color, var(--color-accent));
   letter-spacing: 0.02em;
 }
@@ -44,8 +64,8 @@ ruby rt {
 }
 
 .lyrics-line {
-  font-size: 1.2rem;
-  line-height: 2.2;
+  font-size: 1.35rem;
+  line-height: 2.3;
   letter-spacing: 0.04em;
   color: var(--lyrics-primary-color, #ffffff);
   text-align: center;
@@ -55,12 +75,12 @@ ruby rt {
 }
 
 .lyrics-viewport {
-  max-height: min(62vh, 34rem);
+  max-height: min(68vh, 42rem);
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-behavior: smooth;
   scroll-padding-block: 35%;
-  border-radius: 0.75rem;
+  border-radius: 1rem;
   background: var(--lyrics-panel-bg, rgba(19, 22, 37, 0.68));
   backdrop-filter: blur(10px);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.4) 10%, black 18%, black 78%, rgba(0, 0, 0, 0.45) 88%, transparent 100%);
@@ -74,8 +94,8 @@ ruby rt {
 
 .lyrics-line.active {
   color: var(--lyrics-accent-color, var(--color-accent));
-  font-size: 1.5rem;
-  transform: scale(1.02);
+  font-size: 1.72rem;
+  transform: scale(1.025);
 }
 
 .lyrics-line-base {
@@ -101,18 +121,19 @@ ruby rt {
 }
 
 .lyrics-line .romaji {
-  font-size: 0.75rem;
+  font-size: 0.92rem;
   color: var(--lyrics-secondary-color, #eef1ff);
-  letter-spacing: 0.08em;
-  line-height: 1.4;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  font-weight: 500;
 }
 
 .lyrics-line .translation {
-  font-size: 0.8rem;
+  font-size: 0.96rem;
   color: var(--lyrics-muted-color, #d7dbf5);
-  opacity: 0.86;
-  margin-top: 0.15rem;
-  line-height: 1.4;
+  opacity: 0.96;
+  margin-top: 0.2rem;
+  line-height: 1.52;
 }
 
 .audio-player input[type='range'] {
@@ -135,7 +156,7 @@ ruby rt {
 
 /* KTV mode (stage 5): bigger text, bolder highlight */
 .ktv-mode .lyrics-line {
-  font-size: 1.8rem;
+  font-size: 2rem;
   line-height: 2.2;
   text-align: center;
 }

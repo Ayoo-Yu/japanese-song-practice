@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { updateLyrics, saveCalibrations } from '../../services/song-service'
+import { ensureSongPersisted, updateLyrics, saveCalibrations } from '../../services/song-service'
 import { usePlayerStore } from '../../stores/player-store'
 import type { Song } from '../../types'
 
@@ -50,6 +50,11 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
   const handleSave = async () => {
     setIsSaving(true)
     try {
+      const persistedSong = await ensureSongPersisted(song)
+      if (persistedSong.id !== song.id) {
+        onSongUpdate(persistedSong)
+      }
+
       const changes = lines.map((l) => ({
         timeMs: l.timeMs,
         original: l.original !== (parsedLines.find((p) => p.timeMs === l.timeMs)?.text) ? l.original : undefined,
@@ -58,12 +63,12 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
       })).filter((c) => c.original !== undefined || c.romaji !== undefined || c.translation !== undefined)
 
       if (changes.length > 0) {
-        const updated = await updateLyrics(song.neteaseId, changes)
+        const updated = await updateLyrics(persistedSong.neteaseId, changes)
         if (updated) onSongUpdate(updated)
       }
 
       if (hasCalibrationChanges) {
-        const updated = await saveCalibrations(song.neteaseId, localCalibrations)
+        const updated = await saveCalibrations(persistedSong.neteaseId, localCalibrations)
         if (updated) onSongUpdate(updated)
         onCalibrationsSave(localCalibrations)
       }

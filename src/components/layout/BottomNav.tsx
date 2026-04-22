@@ -10,7 +10,7 @@ const links = [
 export function BottomNav() {
   return (
     <nav className="fixed bottom-0 inset-x-0 bg-surface border-t border-border z-50">
-      <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
+      <div className="page-shell flex justify-around items-center h-16">
         {links.map((link) => (
           <NavLink
             key={link.to}

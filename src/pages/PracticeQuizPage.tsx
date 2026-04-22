@@ -33,7 +33,7 @@ export function PracticeQuizPage() {
 
   if (isLoading || !song || !session) {
     return (
-      <div className="p-6 max-w-lg mx-auto">
+      <div className="page-shell p-6">
         <div className="flex justify-center py-20">
           <div className="w-10 h-10 border-3 border-accent border-t-transparent rounded-full animate-spin" />
         </div>
@@ -43,7 +43,7 @@ export function PracticeQuizPage() {
 
   if (session.questions.length === 0) {
     return (
-      <div className="p-6 max-w-lg mx-auto text-center py-16">
+      <div className="page-shell p-6 text-center py-16">
         <p className="text-text-muted mb-4">这首歌没有足够的注音数据来出题</p>
         <Link to="/practice" className="inline-block px-6 py-2.5 bg-accent text-white rounded-xl font-medium">
           返回选择
@@ -58,7 +58,7 @@ export function PracticeQuizPage() {
     const total = session.questions.length
     const pct = Math.round((session.correctCount / total) * 100)
     return (
-      <div className="p-6 max-w-lg mx-auto text-center py-12">
+      <div className="page-shell p-6 text-center py-12">
         <div className="mb-6 rounded-lg bg-surface/68 backdrop-blur-sm px-4 py-3">
           <h2 className="text-3xl font-bold text-text mb-2">练习完成!</h2>
         </div>
@@ -158,7 +158,7 @@ export function PracticeQuizPage() {
         : question.correctTranslation ?? ''
 
   return (
-    <div className="p-6 max-w-lg mx-auto">
+    <div className="page-shell p-6">
       <div className="mb-6">
         <QuizProgress
           current={session.currentIndex + 1}

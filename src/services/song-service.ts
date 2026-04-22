@@ -48,6 +48,12 @@ export async function saveSong(song: Song): Promise<Song> {
   return saved
 }
 
+export async function ensureSongPersisted(song: Song): Promise<Song> {
+  const existing = await getSongByNeteaseId(song.neteaseId)
+  if (existing) return existing
+  return saveSong(song)
+}
+
 export async function updateAudioUrl(id: string, audioUrl: string): Promise<void> {
   const songs = loadAll()
   const idx = songs.findIndex((s) => s.id === id)
@@ -100,7 +106,7 @@ export async function updateLyrics(
     if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
   }
 
-  const stageLyrics = buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
+  const stageLyrics = await buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
 
   const updated: Song = {
     ...song,
@@ -142,7 +148,7 @@ export async function regenerateFurigana(
     if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
   }
 
-  const stageLyrics = buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
+  const stageLyrics = await buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
   return saveSong({
     ...song,
     furiganaData,
@@ -176,7 +182,7 @@ export async function updateFuriganaToken(
   const lrcParsed = song.lrcParsed ?? []
   const romajiMap = new Map(Object.entries(song.romajiLines ?? {}).map(([k, v]) => [Number(k), v]))
   const translationMap = new Map(Object.entries(song.translationLines ?? {}).map(([k, v]) => [Number(k), v]))
-  const stageLyrics = buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
+  const stageLyrics = await buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
 
   return saveSong({ ...song, furiganaData, stageLyrics })
 }

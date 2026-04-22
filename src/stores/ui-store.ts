@@ -28,11 +28,11 @@ const defaultAppearance: AppearanceSettings = {
   saturation: 1,
   brightness: 1,
   lyricsPanelColor: '#0f172a',
-  lyricsPanelOpacity: 0.68,
-  lyricsLineOpacity: 0.08,
+  lyricsPanelOpacity: 0.8,
+  lyricsLineOpacity: 0.12,
   lyricsTextColor: '#ffffff',
   lyricsAccentColor: '#67e8f9',
-  lyricsSubtextColor: '#dbeafe',
+  lyricsSubtextColor: '#e5eefc',
 }
 
 export const useUIStore = create<UIState>()(

@@ -1,24 +1,32 @@
 import { getLyric, getSongUrl, getSongDetail } from '../lib/netease'
 import { parseLrc } from '../lib/lrc-parser'
-import { computeFuriganaForLine, tokensToHtml, FURIGANA_VERSION } from '../lib/furigana-service'
+import { computeDisplayRomaji, computeFuriganaForLine, tokensToHtml, FURIGANA_VERSION } from '../lib/furigana-service'
 import { getSongByNeteaseId, saveSong, updateAudioUrl } from './song-service'
 import type { Song, StageLine, ParsedLine, FuriganaLine } from '../types'
 
-export function buildStageLyrics(
+export async function buildStageLyrics(
   parsedLines: ParsedLine[],
   romajiMap: Map<number, string>,
   translationMap: Map<number, string>,
   furiganaData?: FuriganaLine[],
-): Record<number, StageLine[]> {
+): Promise<Record<number, StageLine[]>> {
   const furiganaByIndex = new Map<number, FuriganaLine>()
   if (furiganaData) {
     for (const fl of furiganaData) furiganaByIndex.set(fl.lineIndex, fl)
   }
 
+  const displayRomajiByTime = new Map<number, string>()
+  for (let idx = 0; idx < parsedLines.length; idx++) {
+    const line = parsedLines[idx]
+    const sourceRomaji = romajiMap.get(line.timeMs) ?? ''
+    const displayRomaji = await computeDisplayRomaji(line.text, sourceRomaji)
+    displayRomajiByTime.set(line.timeMs, displayRomaji)
+  }
+
   const stageLyrics: Record<number, StageLine[]> = {}
   for (let stage = 1; stage <= 5; stage++) {
     stageLyrics[stage] = parsedLines.map((line, idx) => {
-      const romaji = romajiMap.get(line.timeMs) ?? ''
+      const romaji = displayRomajiByTime.get(line.timeMs) ?? ''
       const translation = translationMap.get(line.timeMs) ?? ''
 
       // Generate furigana HTML for annotated field
@@ -95,13 +103,13 @@ export async function getAnnotatedSong(neteaseId: number, preview = false): Prom
     }
   }
 
-  const stageLyrics = buildStageLyrics(parsedLines, romajiMap, translationMap, furiganaData)
+  const stageLyrics = await buildStageLyrics(parsedLines, romajiMap, translationMap, furiganaData)
 
   // Build per-line source maps for editing
   const romajiLines: Record<number, string> = {}
   const translationLines: Record<number, string> = {}
   for (const line of parsedLines) {
-    const r = romajiMap.get(line.timeMs)
+    const r = stageLyrics[1]?.find((item) => item.timeMs === line.timeMs)?.romaji
     if (r) romajiLines[line.timeMs] = r
     const t = translationMap.get(line.timeMs)
     if (t) translationLines[line.timeMs] = t

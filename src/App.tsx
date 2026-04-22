@@ -17,7 +17,7 @@ export class App extends Component<object, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-6 max-w-lg mx-auto text-center py-20">
+        <div className="page-shell p-6 text-center py-20">
           <p className="text-xl font-bold text-text mb-2">出错了</p>
           <p className="text-text-secondary mb-4">{this.state.error?.message}</p>
           <button

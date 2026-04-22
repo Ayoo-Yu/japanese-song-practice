@@ -7,7 +7,7 @@ import { LyricsEditor } from '../components/song/LyricsEditor'
 import { usePlayerStore } from '../stores/player-store'
 import { useUIStore } from '../stores/ui-store'
 import { ensureAudioUrl } from '../services/lyrics-service'
-import { regenerateFurigana } from '../services/song-service'
+import { ensureSongPersisted, regenerateFurigana, updateLyrics } from '../services/song-service'
 import { listSavedLines, listSavedWords, toggleSavedLine, toggleSavedWord } from '../services/collections-service'
 import type { Song, FuriganaToken } from '../types'
 
@@ -40,7 +40,17 @@ export function SongPage() {
   const [savedLineIds, setSavedLineIds] = useState<Set<string>>(new Set())
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [furiganaHint, setFuriganaHint] = useState<FuriganaHint | null>(null)
+  const [romajiEdit, setRomajiEdit] = useState<{
+    lineIndex: number
+    value: string
+    isSaving: boolean
+    feedback?: { tone: 'success' | 'error'; text: string }
+  } | null>(null)
   const appearance = useUIStore((s) => s.appearance)
+  const safePanelColor = ensurePanelColor(appearance.lyricsPanelColor)
+  const safePrimaryColor = ensureReadableTextColor(appearance.lyricsTextColor, safePanelColor, 5.2)
+  const safeSecondaryColor = ensureReadableTextColor(appearance.lyricsSubtextColor, safePanelColor, 4)
+  const safeAccentColor = ensureReadableTextColor(appearance.lyricsAccentColor, safePanelColor, 3.2)
 
   useEffect(() => {
     if (song) {
@@ -93,7 +103,7 @@ export function SongPage() {
 
   if (!id || Number.isNaN(neteaseId)) {
     return (
-      <div className="p-6 max-w-lg mx-auto">
+      <div className="page-shell p-6">
         <p className="text-danger">无效的歌曲 ID</p>
       </div>
     )
@@ -101,7 +111,7 @@ export function SongPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 max-w-lg mx-auto">
+      <div className="page-shell p-6">
         <div className="flex flex-col items-center gap-4 py-20">
           <div className="w-10 h-10 border-3 border-accent border-t-transparent rounded-full animate-spin" />
           <p className="text-text-secondary">加载歌词...</p>
@@ -112,7 +122,7 @@ export function SongPage() {
 
   if (error || !song) {
     return (
-      <div className="p-6 max-w-lg mx-auto">
+      <div className="page-shell p-6">
         <p className="text-danger">{error ?? '加载失败'}</p>
       </div>
     )
@@ -129,6 +139,11 @@ export function SongPage() {
   const handleRegenerateFurigana = async () => {
     setIsRegenerating(true)
     try {
+      if (isPreview) {
+        const persisted = await ensureSongPersisted(song)
+        setSong(persisted)
+        if (isEditing) setEditSong(persisted)
+      }
       const updated = await regenerateFurigana(song.neteaseId)
       if (updated) {
         setSong(updated)
@@ -141,17 +156,17 @@ export function SongPage() {
 
   return (
     <div
-      className="max-w-lg mx-auto pb-8 overflow-x-hidden"
+      className="page-shell pb-8 overflow-x-hidden"
       style={{
-        ['--lyrics-panel-bg' as string]: toRgba(appearance.lyricsPanelColor, appearance.lyricsPanelOpacity),
-        ['--lyrics-line-base-bg' as string]: toRgba(appearance.lyricsTextColor, appearance.lyricsLineOpacity),
-        ['--lyrics-primary-color' as string]: appearance.lyricsTextColor,
-        ['--lyrics-accent-color' as string]: appearance.lyricsAccentColor,
-        ['--lyrics-furigana-color' as string]: appearance.lyricsAccentColor,
-        ['--ktv-highlight-color' as string]: appearance.lyricsAccentColor,
-        ['--lyrics-active-bg' as string]: toRgba(appearance.lyricsAccentColor, 0.14),
-        ['--lyrics-secondary-color' as string]: appearance.lyricsSubtextColor,
-        ['--lyrics-muted-color' as string]: appearance.lyricsSubtextColor,
+        ['--lyrics-panel-bg' as string]: toRgba(safePanelColor, Math.max(appearance.lyricsPanelOpacity, 0.76)),
+        ['--lyrics-line-base-bg' as string]: toRgba(safePrimaryColor, Math.max(appearance.lyricsLineOpacity, 0.12)),
+        ['--lyrics-primary-color' as string]: safePrimaryColor,
+        ['--lyrics-accent-color' as string]: safeAccentColor,
+        ['--lyrics-furigana-color' as string]: safeAccentColor,
+        ['--ktv-highlight-color' as string]: safeAccentColor,
+        ['--lyrics-active-bg' as string]: toRgba(safeAccentColor, 0.18),
+        ['--lyrics-secondary-color' as string]: safeSecondaryColor,
+        ['--lyrics-muted-color' as string]: safeSecondaryColor,
       }}
     >
       <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur-sm p-4 space-y-3">
@@ -223,6 +238,7 @@ export function SongPage() {
             const lineHasLowConfidence = !!fLine?.words.some((word) => word.confidence === 'low')
             const lineHasMediumConfidence = !!fLine?.words.some((word) => word.confidence === 'medium')
             const lineHint = furiganaHint?.lineIndex === i ? furiganaHint : null
+            const isEditingRomaji = romajiEdit?.lineIndex === i
 
             return (
               <div
@@ -254,8 +270,8 @@ export function SongPage() {
                   }}
                   className={`absolute right-2 top-2 z-20 rounded px-2 py-1 text-[11px] font-medium transition-colors ${
                     lineSaved
-                      ? 'bg-accent/18 text-accent'
-                      : 'bg-black/20 text-white/85 hover:bg-black/28'
+                      ? 'bg-accent/20 text-accent ring-1 ring-accent/25'
+                      : 'bg-surface/82 text-text-secondary ring-1 ring-black/8 hover:bg-surface'
                   }`}
                 >
                   {lineSaved ? '已收藏' : '收藏句子'}
@@ -330,10 +346,135 @@ export function SongPage() {
                           <p className="mt-1 text-text-muted">
                             {lineHint.saved ? '已加入生词本，后面可以在曲库页继续整理。' : '还没有加入生词本，再点一次这个词可以取消收藏。'}
                           </p>
+                          <div className="mt-2">
+                            {isEditingRomaji ? (
+                              <div className="space-y-2">
+                                <input
+                                  type="text"
+                                  value={romajiEdit.value}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) =>
+                                    setRomajiEdit((prev) => prev && prev.lineIndex === i
+                                      ? { ...prev, value: e.target.value, feedback: undefined }
+                                      : prev)
+                                  }
+                                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent/50"
+                                  placeholder="修正这句罗马音"
+                                />
+                                {romajiEdit.feedback && (
+                                  <div
+                                    className={`rounded-md px-3 py-2 text-[11px] ${
+                                      romajiEdit.feedback.tone === 'success'
+                                        ? 'bg-emerald-500/12 text-emerald-700'
+                                        : 'bg-red-500/10 text-red-600'
+                                    }`}
+                                  >
+                                    {romajiEdit.feedback.text}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={romajiEdit.isSaving}
+                                    onClick={async (e) => {
+                                      e.stopPropagation()
+                                      const value = romajiEdit.value.trim()
+                                      if (!value) {
+                                        setRomajiEdit((prev) => prev && prev.lineIndex === i
+                                          ? {
+                                            ...prev,
+                                            feedback: { tone: 'error', text: '请先输入这句的罗马音。' },
+                                          }
+                                          : prev)
+                                        return
+                                      }
+                                      setRomajiEdit((prev) => prev && prev.lineIndex === i
+                                        ? { ...prev, isSaving: true, feedback: undefined }
+                                        : prev)
+                                      try {
+                                        if (isPreview) {
+                                          const persisted = await ensureSongPersisted(song)
+                                          setSong(persisted)
+                                          if (isEditing) setEditSong(persisted)
+                                        }
+                                        const updated = await updateLyrics(song.neteaseId, [
+                                          { timeMs: line.timeMs, romaji: value },
+                                        ])
+                                        if (updated) {
+                                          setSong(updated)
+                                          if (isEditing) setEditSong(updated)
+                                          setRomajiEdit((prev) => prev && prev.lineIndex === i
+                                            ? {
+                                              ...prev,
+                                              value,
+                                              isSaving: false,
+                                              feedback: { tone: 'success', text: '已保存，并已按新的罗马音重算这句注音。' },
+                                            }
+                                            : prev)
+                                        } else {
+                                          setRomajiEdit((prev) => prev && prev.lineIndex === i
+                                            ? {
+                                              ...prev,
+                                              isSaving: false,
+                                              feedback: { tone: 'error', text: '保存失败，这首歌的本地数据没有更新。' },
+                                            }
+                                            : prev)
+                                        }
+                                      } catch {
+                                        setRomajiEdit((prev) => prev && prev.lineIndex === i
+                                          ? {
+                                            ...prev,
+                                            isSaving: false,
+                                            feedback: { tone: 'error', text: '保存失败，请再试一次。' },
+                                          }
+                                          : prev)
+                                      } finally {
+                                        setRomajiEdit((prev) => prev && prev.lineIndex === i && prev.isSaving
+                                          ? { ...prev, isSaving: false }
+                                          : prev)
+                                      }
+                                    }}
+                                    className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                                  >
+                                    {romajiEdit.isSaving ? '保存中...' : '保存并重算注音'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={romajiEdit.isSaving}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setRomajiEdit(null)
+                                    }}
+                                    className="rounded-md bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-secondary"
+                                  >
+                                    取消
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setRomajiEdit({
+                                    lineIndex: i,
+                                    value: line.romaji || '',
+                                    isSaving: false,
+                                  })
+                                }}
+                                className="rounded-md bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary ring-1 ring-black/8 hover:bg-surface-muted"
+                              >
+                                修正这句罗马音
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <button
                           type="button"
-                          onClick={() => setFuriganaHint(null)}
+                          onClick={() => {
+                            setFuriganaHint(null)
+                            setRomajiEdit(null)
+                          }}
                           className="shrink-0 rounded px-2 py-1 text-[11px] text-text-secondary hover:bg-black/5"
                         >
                           关闭
@@ -530,4 +671,93 @@ function toRgba(hex: string | undefined, alpha: number | undefined): string {
   const g = (value >> 8) & 255
   const b = value & 255
   return `rgba(${r}, ${g}, ${b}, ${safeAlpha})`
+}
+
+function ensurePanelColor(hex: string | undefined): string {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return '#0f172a'
+
+  const luminance = relativeLuminance(rgb)
+  if (luminance <= 0.18) return rgbToHex(rgb)
+
+  return rgbToHex(mixRgb(rgb, { r: 15, g: 23, b: 42 }, 0.55))
+}
+
+function ensureReadableTextColor(
+  foregroundHex: string | undefined,
+  backgroundHex: string | undefined,
+  minimumContrast: number,
+): string {
+  const foreground = hexToRgb(foregroundHex) ?? { r: 255, g: 255, b: 255 }
+  const background = hexToRgb(backgroundHex) ?? { r: 15, g: 23, b: 42 }
+
+  let best = foreground
+  let bestContrast = contrastRatio(foreground, background)
+  if (bestContrast >= minimumContrast) return rgbToHex(best)
+
+  const whiteContrast = contrastRatio({ r: 255, g: 255, b: 255 }, background)
+  const blackContrast = contrastRatio({ r: 0, g: 0, b: 0 }, background)
+
+  if (whiteContrast >= blackContrast) {
+    best = { r: 255, g: 255, b: 255 }
+    bestContrast = whiteContrast
+  } else {
+    best = { r: 0, g: 0, b: 0 }
+    bestContrast = blackContrast
+  }
+
+  if (bestContrast >= minimumContrast) return rgbToHex(best)
+  return rgbToHex(best)
+}
+
+function hexToRgb(hex: string | undefined): { r: number; g: number; b: number } | null {
+  if (!hex?.trim()) return null
+  const normalized = hex.replace('#', '')
+  const safeHex = normalized.length === 3
+    ? normalized.split('').map((char) => char + char).join('')
+    : normalized.padEnd(6, '0').slice(0, 6)
+  const value = Number.parseInt(safeHex, 16)
+  if (Number.isNaN(value)) return null
+
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255,
+  }
+}
+
+function rgbToHex({ r, g, b }: { r: number; g: number; b: number }): string {
+  return `#${[r, g, b].map((value) => Math.round(value).toString(16).padStart(2, '0')).join('')}`
+}
+
+function mixRgb(
+  from: { r: number; g: number; b: number },
+  to: { r: number; g: number; b: number },
+  weight: number,
+): { r: number; g: number; b: number } {
+  return {
+    r: from.r + (to.r - from.r) * weight,
+    g: from.g + (to.g - from.g) * weight,
+    b: from.b + (to.b - from.b) * weight,
+  }
+}
+
+function contrastRatio(
+  first: { r: number; g: number; b: number },
+  second: { r: number; g: number; b: number },
+): number {
+  const lighter = Math.max(relativeLuminance(first), relativeLuminance(second))
+  const darker = Math.min(relativeLuminance(first), relativeLuminance(second))
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+function relativeLuminance({ r, g, b }: { r: number; g: number; b: number }): number {
+  const channels = [r, g, b].map((value) => {
+    const normalized = value / 255
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4
+  })
+
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
 }
