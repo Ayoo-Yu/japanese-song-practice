@@ -4,7 +4,7 @@ import { getJapaneseTokenizer } from './japanese-tokenizer'
 import type { JapaneseToken } from './japanese-tokenizer'
 import type { FuriganaToken } from '../types'
 
-export const FURIGANA_VERSION = 6
+export const FURIGANA_VERSION = 7
 
 const LYRIC_READING_OVERRIDES: Array<{
   match: (surface: string, token: JapaneseToken) => boolean
@@ -33,10 +33,14 @@ export async function computeFuriganaForLine(original: string, romaji: string): 
   }
 
   if (tokenized?.some((token) => token.isKanji && token.reading)) {
-    return mergeTokenizerAndRomajiTokens(tokenized, fromRomaji)
+    return reconcileRomajiConfidence(
+      mergeTokenizerAndRomajiTokens(tokenized, fromRomaji),
+      tokenized,
+      fromRomaji,
+    )
   }
 
-  return fromRomaji
+  return reconcileRomajiConfidence(fromRomaji, tokenized, fromRomaji)
 }
 
 async function computeFuriganaWithTokenizer(original: string): Promise<FuriganaToken[] | null> {
@@ -61,7 +65,7 @@ async function computeFuriganaWithTokenizer(original: string): Promise<FuriganaT
         }
 
         if (isAllKanji(surface)) {
-          result.push({ surface, reading, isKanji: true, confidence: 'medium' as const, source: 'tokenizer' as const })
+          result.push({ surface, reading, isKanji: true, confidence: 'high' as const, source: 'tokenizer' as const })
           continue
         }
       }
@@ -154,6 +158,36 @@ export async function computeDisplayRomaji(original: string, romaji: string): Pr
   return normalizeFallbackRomaji(romaji)
 }
 
+export async function computeDictionaryRomaji(original: string): Promise<string> {
+  const cleaned = stripInlineKanaAnnotations(original)
+  if (!cleaned.trim()) return ''
+
+  try {
+    const tokenized = await computeFuriganaWithTokenizer(cleaned)
+    if (tokenized?.length) {
+      const suggestion = tokensToDisplayRomaji(tokenized)
+      if (looksLikePureRomajiSuggestion(suggestion)) {
+        return suggestion
+      }
+    }
+
+    const tokenizer = await getJapaneseTokenizer()
+    const pieces: string[] = []
+
+    for (const token of tokenizer.tokenize(cleaned)) {
+      const piece = dictionaryRomajiPieceForToken(token)
+      if (piece) {
+        pieces.push(piece)
+      }
+    }
+
+    const suggestion = normalizeDisplayRomaji(pieces)
+    return looksLikePureRomajiSuggestion(suggestion) ? suggestion : ''
+  } catch {
+    return ''
+  }
+}
+
 function stripInlineKanaAnnotations(original: string): string {
   // Strip inline furigana annotations like 宇宙（そら）→ 宇宙.
   return original.replace(
@@ -204,6 +238,31 @@ function romajiPieceFromFuriganaToken(token: FuriganaToken): string {
   return wanakanaToRomaji(source)
 }
 
+function dictionaryRomajiPieceForToken(token: JapaneseToken): string | null {
+  const surface = token.surface_form
+  if (!surface) return ''
+
+  if (!containsJapanese(surface)) {
+    return surface
+  }
+
+  const reading = getPreferredReading(token)
+  if (reading) {
+    if (token.pos === '助詞') {
+      if (surface === 'は') return 'wa'
+      if (surface === 'へ') return 'e'
+      if (surface === 'を') return 'o'
+    }
+    return wanakanaToRomaji(reading)
+  }
+
+  if (isKanaLike(surface)) {
+    return wanakanaToRomaji(wanakanaToHiragana(surface))
+  }
+
+  return null
+}
+
 function normalizeDisplayRomaji(pieces: string[]): string {
   let result = ''
 
@@ -250,6 +309,15 @@ function shouldAttachNextToPrevious(result: string): boolean {
 
 function containsJapanese(text: string): boolean {
   return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9faf]/.test(text)
+}
+
+function isKanaLike(text: string): boolean {
+  return /^[\u3040-\u30ffー]+$/.test(text)
+}
+
+function looksLikePureRomajiSuggestion(text: string): boolean {
+  if (!text.trim()) return false
+  return /^[a-z0-9\s'.,!?;:/()-]+$/i.test(text)
 }
 
 function computeFuriganaFromRomaji(original: string, romaji: string): FuriganaToken[] | null {
@@ -324,6 +392,45 @@ function mergeTokenizerAndRomajiTokens(
   }
 
   return merged
+}
+
+function reconcileRomajiConfidence(
+  primaryTokens: FuriganaToken[] | null,
+  tokenizerTokens: FuriganaToken[] | null,
+  romajiTokens: FuriganaToken[] | null,
+): FuriganaToken[] | null {
+  if (!primaryTokens) return primaryTokens
+  if (!romajiTokens?.some((token) => token.isKanji && token.confidence === 'low')) {
+    return primaryTokens
+  }
+  if (!tokenizerTokens?.some((token) => token.isKanji && token.reading)) {
+    return primaryTokens
+  }
+
+  const tokenizerKanji = tokenizerTokens.filter((token) => token.isKanji)
+  const primaryKanji = primaryTokens.filter((token) => token.isKanji)
+  if (tokenizerKanji.length !== primaryKanji.length) {
+    return primaryTokens
+  }
+
+  return primaryTokens.map((token, index) => {
+    if (!token.isKanji || token.confidence !== 'low') return token
+
+    const primaryKanjiIndex = primaryTokens
+      .slice(0, index + 1)
+      .filter((item) => item.isKanji).length - 1
+    const tokenizerMatch = tokenizerKanji[primaryKanjiIndex]
+
+    if (
+      tokenizerMatch &&
+      tokenizerMatch.surface === token.surface &&
+      tokenizerMatch.reading === token.reading
+    ) {
+      return { ...token, confidence: 'medium' as const }
+    }
+
+    return token
+  })
 }
 
 function getPreferredReading(token: JapaneseToken): string {

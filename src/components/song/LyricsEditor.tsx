@@ -32,7 +32,8 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
       translation: translationLines[l.timeMs] ?? '',
     }))
   )
-  const [isSaving, setIsSaving] = useState(false)
+  const [previewSavingLine, setPreviewSavingLine] = useState<number | null>(null)
+  const [autoSavingLine, setAutoSavingLine] = useState<number | null>(null)
   const [calibratingLine, setCalibratingLine] = useState<number | null>(null)
 
   const setPendingSeek = usePlayerStore((s) => s.setPendingSeek)
@@ -47,47 +48,34 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
     })
   }, [])
 
-  const handleSave = async () => {
-    setIsSaving(true)
+  const persistLineIfChanged = useCallback(async (lineIdx: number) => {
+    const line = lines[lineIdx]
+    const originalLine = parsedLines[lineIdx]
+    if (!line || !originalLine) return
+
+    const change = {
+      timeMs: line.timeMs,
+      original: line.original !== (originalLine.text ?? '') ? line.original : undefined,
+      romaji: line.romaji !== (romajiLines[line.timeMs] ?? '') ? line.romaji : undefined,
+      translation: line.translation !== (translationLines[line.timeMs] ?? '') ? line.translation : undefined,
+    }
+
+    if (change.original === undefined && change.romaji === undefined && change.translation === undefined) {
+      return
+    }
+
+    setAutoSavingLine(lineIdx)
     try {
       const persistedSong = await ensureSongPersisted(song)
       if (persistedSong.id !== song.id) {
         onSongUpdate(persistedSong)
       }
-
-      const changes = lines.map((l) => ({
-        timeMs: l.timeMs,
-        original: l.original !== (parsedLines.find((p) => p.timeMs === l.timeMs)?.text) ? l.original : undefined,
-        romaji: l.romaji !== (romajiLines[l.timeMs] ?? '') ? l.romaji : undefined,
-        translation: l.translation !== (translationLines[l.timeMs] ?? '') ? l.translation : undefined,
-      })).filter((c) => c.original !== undefined || c.romaji !== undefined || c.translation !== undefined)
-
-      if (changes.length > 0) {
-        const updated = await updateLyrics(persistedSong.neteaseId, changes)
-        if (updated) onSongUpdate(updated)
-      }
-
-      if (hasCalibrationChanges) {
-        const updated = await saveCalibrations(persistedSong.neteaseId, localCalibrations)
-        if (updated) onSongUpdate(updated)
-        onCalibrationsSave(localCalibrations)
-      }
+      const updated = await updateLyrics(persistedSong.neteaseId, [change])
+      if (updated) onSongUpdate(updated)
     } finally {
-      setIsSaving(false)
+      setAutoSavingLine((current) => (current === lineIdx ? null : current))
     }
-  }
-
-  const hasChanges = lines.some((l, i) => {
-    const orig = parsedLines[i]
-    return (
-      l.original !== (orig?.text ?? '') ||
-      l.romaji !== (romajiLines[l.timeMs] ?? '') ||
-      l.translation !== (translationLines[l.timeMs] ?? '')
-    )
-  })
-
-  const hasCalibrationChanges =
-    JSON.stringify(localCalibrations) !== JSON.stringify(calibrations)
+  }, [lines, onSongUpdate, parsedLines, romajiLines, song, translationLines])
 
   const openCalibration = (lineIdx: number) => {
     const line = parsedLines[lineIdx]
@@ -111,13 +99,44 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
     })
   }
 
-  const previewCalibration = (lineIdx: number) => {
+  const previewCalibration = async (lineIdx: number) => {
     const cal = localCalibrations[lineIdx]
     if (!cal) return
+
+    setPreviewSavingLine(lineIdx)
+    try {
+      const persistedSong = await ensureSongPersisted(song)
+      if (persistedSong.id !== song.id) {
+        onSongUpdate(persistedSong)
+      }
+
+      const updated = await saveCalibrations(persistedSong.neteaseId, localCalibrations)
+      if (updated) {
+        onSongUpdate(updated)
+      }
+      onCalibrationsSave(localCalibrations)
+    } finally {
+      setPreviewSavingLine(null)
+    }
+
     setPlaying(false)
     setTimeout(() => {
       setPlayRangeEnd(cal.endMs)
       setPendingSeek(cal.startMs)
+    }, 50)
+  }
+
+  const jumpToLineAndPlay = (lineIdx: number) => {
+    const cal = localCalibrations[lineIdx]
+    const line = parsedLines[lineIdx]
+    const startMs = cal?.startMs ?? line?.timeMs
+    if (startMs === undefined) return
+
+    setPlaying(false)
+    setTimeout(() => {
+      setPlayRangeEnd(null)
+      setPendingSeek(startMs)
+      setPlaying(true)
     }, 50)
   }
 
@@ -128,7 +147,8 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
   }
 
   return (
-    <div className={`px-4 py-2 space-y-1 ${(hasChanges || hasCalibrationChanges) ? 'pb-20' : ''}`}>
+    <div className="rounded-2xl bg-surface/88 p-3 shadow-[0_10px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm">
+      <div className="space-y-2">
       {lines.map((line, i) => {
         if (!line.original.trim() && !line.romaji && !line.translation) {
           return <div key={i} className="h-4" />
@@ -137,41 +157,56 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
         const isCalibrating = calibratingLine === i
 
         return (
-          <div key={i} className="py-2 border-b border-border/30 space-y-1">
+          <div key={i} className="rounded-xl border border-border/60 bg-surface-alt/88 px-3 py-3 shadow-sm space-y-2">
             <div className="flex items-start gap-2">
               <div className="flex-1 space-y-1">
                 <input
                   type="text"
                   value={line.original}
                   onChange={(e) => updateLine(i, 'original', e.target.value)}
-                  className="w-full bg-transparent text-text text-base font-medium outline-none border-b border-transparent focus:border-accent/50 px-1 py-0.5"
+                  onBlur={() => void persistLineIfChanged(i)}
+                  className="w-full rounded-lg border border-transparent bg-surface px-3 py-2 text-base font-medium text-text outline-none focus:border-accent/50"
                   placeholder="原文"
                 />
                 <input
                   type="text"
                   value={line.romaji}
                   onChange={(e) => updateLine(i, 'romaji', e.target.value)}
-                  className="w-full bg-transparent text-text-secondary text-sm outline-none border-b border-transparent focus:border-accent/50 px-1 py-0.5"
+                  onBlur={() => void persistLineIfChanged(i)}
+                  className="w-full rounded-lg border border-transparent bg-surface px-3 py-2 text-sm text-text-secondary outline-none focus:border-accent/50"
                   placeholder="罗马音"
                 />
                 <input
                   type="text"
                   value={line.translation}
                   onChange={(e) => updateLine(i, 'translation', e.target.value)}
-                  className="w-full bg-transparent text-text-muted text-sm outline-none border-b border-transparent focus:border-accent/50 px-1 py-0.5"
+                  onBlur={() => void persistLineIfChanged(i)}
+                  className="w-full rounded-lg border border-transparent bg-surface px-3 py-2 text-sm text-text-muted outline-none focus:border-accent/50"
                   placeholder="翻译"
                 />
+                {autoSavingLine === i && (
+                  <div className="px-1 text-[11px] text-text-secondary">正在自动保存这句修改...</div>
+                )}
               </div>
-              <button
-                onClick={() => isCalibrating ? setCalibratingLine(null) : openCalibration(i)}
-                className={`mt-1 px-2 py-1 rounded text-xs font-medium shrink-0 transition-colors ${
-                  isCalibrated
-                    ? 'bg-accent/15 text-accent'
-                    : 'bg-surface-alt text-text-muted hover:text-text-secondary'
-                }`}
-              >
-                {isCalibrated ? '已校准' : '校准'}
-              </button>
+              <div className="mt-1 flex shrink-0 flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => jumpToLineAndPlay(i)}
+                  className="rounded-md bg-surface px-2.5 py-1.5 text-xs font-medium text-text-secondary ring-1 ring-border hover:bg-surface-muted"
+                >
+                  跳转播放
+                </button>
+                <button
+                  onClick={() => isCalibrating ? setCalibratingLine(null) : openCalibration(i)}
+                  className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    isCalibrated
+                      ? 'bg-accent/15 text-accent'
+                      : 'bg-surface text-text-muted ring-1 ring-border hover:text-text-secondary'
+                  }`}
+                >
+                  {isCalibrated ? '已校准' : '校准'}
+                </button>
+              </div>
             </div>
 
             {isCalibrating && localCalibrations[i] && (
@@ -180,24 +215,14 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
                 calibration={localCalibrations[i]}
                 onUpdate={updateCalibration}
                 onPreview={previewCalibration}
+                previewSaving={previewSavingLine === i}
                 onReset={resetCalibration}
               />
             )}
           </div>
         )
       })}
-
-      {(hasChanges || hasCalibrationChanges) && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: 16, background: 'rgba(0,0,0,0.85)', zIndex: 9999 }}>
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            style={{ width: '100%', padding: '12px', background: '#e11d48', color: 'white', fontWeight: 'bold', fontSize: 16, borderRadius: 12 }}
-          >
-            {isSaving ? '保存中...' : '保存修改'}
-          </button>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -207,12 +232,14 @@ function CalibrationPanel({
   calibration,
   onUpdate,
   onPreview,
+  previewSaving,
   onReset,
 }: {
   lineIdx: number
   calibration: { startMs: number; endMs: number }
   onUpdate: (idx: number, field: 'startMs' | 'endMs', value: number) => void
-  onPreview: (idx: number) => void
+  onPreview: (idx: number) => void | Promise<void>
+  previewSaving: boolean
   onReset: (idx: number) => void
 }) {
   return (
@@ -256,9 +283,10 @@ function CalibrationPanel({
       <div className="flex items-center gap-2">
         <button
           onClick={() => onPreview(lineIdx)}
+          disabled={previewSaving}
           className="px-3 py-1 rounded-md bg-accent/15 text-accent text-xs font-medium hover:bg-accent/25 transition-colors"
         >
-          试听
+          {previewSaving ? '保存中...' : '试听并保存'}
         </button>
         <button
           onClick={() => onReset(lineIdx)}

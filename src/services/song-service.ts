@@ -1,4 +1,4 @@
-import type { Song, FuriganaLine } from '../types'
+import type { Song, FuriganaLine, FuriganaToken } from '../types'
 import { computeFuriganaForLine, FURIGANA_VERSION } from '../lib/furigana-service'
 import { buildStageLyrics } from './lyrics-service'
 
@@ -50,7 +50,14 @@ export async function saveSong(song: Song): Promise<Song> {
 
 export async function ensureSongPersisted(song: Song): Promise<Song> {
   const existing = await getSongByNeteaseId(song.neteaseId)
-  if (existing) return existing
+  if (existing) {
+    const merged: Song = {
+      ...existing,
+      ...song,
+      id: existing.id,
+    }
+    return saveSong(merged)
+  }
   return saveSong(song)
 }
 
@@ -113,7 +120,7 @@ export async function updateLyrics(
     lrcParsed,
     romajiLines,
     translationLines,
-    furiganaData,
+    furiganaData: applyFuriganaOverrides(furiganaData, song.confirmedFuriganaTokenIds),
     stageLyrics,
     furiganaVersion: FURIGANA_VERSION,
   }
@@ -151,7 +158,7 @@ export async function regenerateFurigana(
   const stageLyrics = await buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
   return saveSong({
     ...song,
-    furiganaData,
+    furiganaData: applyFuriganaOverrides(furiganaData, song.confirmedFuriganaTokenIds),
     stageLyrics,
     furiganaVersion: FURIGANA_VERSION,
   })
@@ -185,4 +192,82 @@ export async function updateFuriganaToken(
   const stageLyrics = await buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
 
   return saveSong({ ...song, furiganaData, stageLyrics })
+}
+
+export async function confirmFuriganaToken(
+  neteaseId: number,
+  lineIndex: number,
+  tokenIndex: number,
+): Promise<Song | null> {
+  const song = loadAll().find((s) => s.neteaseId === neteaseId)
+  if (!song) return null
+
+  const tokenId = buildConfirmedTokenId(lineIndex, tokenIndex)
+  const confirmedFuriganaTokenIds = Array.from(new Set([
+    ...(song.confirmedFuriganaTokenIds ?? []),
+    tokenId,
+  ]))
+
+  const furiganaData = applyFuriganaOverrides(song.furiganaData ?? [], confirmedFuriganaTokenIds)
+  return saveSong({ ...song, confirmedFuriganaTokenIds, furiganaData })
+}
+
+export async function ignoreMediumConfidenceLine(
+  neteaseId: number,
+  lineIndex: number,
+): Promise<Song | null> {
+  const song = loadAll().find((s) => s.neteaseId === neteaseId)
+  if (!song) return null
+
+  const ignoredMediumConfidenceLineIndexes = Array.from(new Set([
+    ...(song.ignoredMediumConfidenceLineIndexes ?? []),
+    lineIndex,
+  ]))
+
+  return saveSong({ ...song, ignoredMediumConfidenceLineIndexes })
+}
+
+export async function setIgnoreAllMediumConfidenceHints(
+  neteaseId: number,
+  ignored: boolean,
+): Promise<Song | null> {
+  const song = loadAll().find((s) => s.neteaseId === neteaseId)
+  if (!song) return null
+
+  return saveSong({
+    ...song,
+    ignoreAllMediumConfidenceHints: ignored,
+  })
+}
+
+function applyFuriganaOverrides(
+  furiganaData: FuriganaLine[],
+  confirmedTokenIds?: string[],
+): FuriganaLine[] {
+  const confirmed = new Set(confirmedTokenIds ?? [])
+  if (confirmed.size === 0) return furiganaData
+
+  return furiganaData.map((line) => ({
+    ...line,
+    words: line.words.map((word, tokenIndex) => applyTokenOverride(word, confirmed, line.lineIndex, tokenIndex)),
+  }))
+}
+
+function applyTokenOverride(
+  word: FuriganaToken,
+  confirmed: Set<string>,
+  lineIndex: number,
+  tokenIndex: number,
+): FuriganaToken {
+  if (!word.isKanji) return word
+  if (!confirmed.has(buildConfirmedTokenId(lineIndex, tokenIndex))) return word
+  return {
+    ...word,
+    confidence: 'high',
+    source: 'user_confirmed',
+  }
+}
+
+function buildConfirmedTokenId(lineIndex: number, tokenIndex: number): string {
+  return `${lineIndex}:${tokenIndex}`
 }

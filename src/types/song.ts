@@ -22,6 +22,9 @@ export interface Song {
   furiganaVersion?: number
   // Per-line KTV gradient timing overrides, keyed by line index
   calibrations?: Record<number, { startMs: number; endMs: number }>
+  ignoredMediumConfidenceLineIndexes?: number[]
+  confirmedFuriganaTokenIds?: string[]
+  ignoreAllMediumConfidenceHints?: boolean
 }
 
 export interface ParsedLine {
@@ -48,7 +51,7 @@ export interface FuriganaToken {
   reading: string
   isKanji: boolean
   confidence?: 'high' | 'medium' | 'low'
-  source?: 'tokenizer' | 'romaji_strict' | 'romaji_fallback'
+  source?: 'tokenizer' | 'romaji_strict' | 'romaji_fallback' | 'user_confirmed'
 }
 
 export interface RomajiLine {
