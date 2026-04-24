@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useCallback } from 'react'
 import { usePlayerStore } from '../../stores/player-store'
 
 interface AudioPlayerProps {
@@ -8,148 +8,22 @@ interface AudioPlayerProps {
 }
 
 export function AudioPlayer({ src, onRetry, isRetrying }: AudioPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement>(null)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
-  const volume = usePlayerStore((s) => s.volume)
   const currentTimeMs = usePlayerStore((s) => s.currentTimeMs)
   const durationMs = usePlayerStore((s) => s.durationMs)
-  const setCurrentTime = usePlayerStore((s) => s.setCurrentTime)
-  const setDuration = usePlayerStore((s) => s.setDuration)
   const setPlaying = usePlayerStore((s) => s.setPlaying)
-  const setVocalEnergy = usePlayerStore((s) => s.setVocalEnergy)
-  const pendingSeekMs = usePlayerStore((s) => s.pendingSeekMs)
-  const playRangeEnd = usePlayerStore((s) => s.playRangeEnd)
   const setPendingSeek = usePlayerStore((s) => s.setPendingSeek)
-  const setPlayRangeEnd = usePlayerStore((s) => s.setPlayRangeEnd)
   const playbackRate = usePlayerStore((s) => s.playbackRate)
   const setPlaybackRate = usePlayerStore((s) => s.setPlaybackRate)
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio || !src) return
-
-    const onLoadedMetadata = () => {
-      if (audio.duration && isFinite(audio.duration)) {
-        setDuration(audio.duration * 1000)
-      }
-    }
-    const onEnded = () => setPlaying(false)
-    const onError = () => setPlaying(false)
-
-    // Web Audio API for vocal energy analysis
-    let analyser: AnalyserNode | null = null
-    let freqData: Uint8Array<ArrayBuffer> | null = null
-    try {
-      const ctx = new AudioContext()
-      const source = ctx.createMediaElementSource(audio)
-      analyser = ctx.createAnalyser()
-      analyser.fftSize = 2048
-      source.connect(analyser)
-      analyser.connect(ctx.destination)
-      freqData = new Uint8Array(analyser.frequencyBinCount)
-    } catch {
-      // CORS or unsupported — fall back to linear progress
-    }
-
-    // Vocal range: 300Hz–4kHz. At 44100Hz sample rate with fftSize 2048,
-    // each bin ≈ 21.5Hz → bins 14–186
-    const BIN_LOW = 14
-    const BIN_HIGH = 186
-    const BIN_COUNT = BIN_HIGH - BIN_LOW
-
-    // 120fps time + energy updates
-    let timerId: ReturnType<typeof setTimeout>
-    const tick = () => {
-      setCurrentTime(audio.currentTime * 1000)
-
-      if (analyser && freqData) {
-        analyser.getByteFrequencyData(freqData)
-        let sum = 0
-        for (let i = BIN_LOW; i < BIN_HIGH; i++) {
-          sum += freqData[i]
-        }
-        // Normalize to 0–100
-        setVocalEnergy(Math.min(100, sum / BIN_COUNT / 1.2))
-      }
-
-      timerId = setTimeout(tick, 8)
-    }
-    timerId = setTimeout(tick, 8)
-
-    audio.addEventListener('loadedmetadata', onLoadedMetadata)
-    audio.addEventListener('durationchange', onLoadedMetadata)
-    audio.addEventListener('ended', onEnded)
-    audio.addEventListener('error', onError)
-
-    if (audio.duration && isFinite(audio.duration)) {
-      setDuration(audio.duration * 1000)
-    }
-
-    return () => {
-      clearTimeout(timerId)
-      audio.removeEventListener('loadedmetadata', onLoadedMetadata)
-      audio.removeEventListener('durationchange', onLoadedMetadata)
-      audio.removeEventListener('ended', onEnded)
-      audio.removeEventListener('error', onError)
-    }
-  }, [src, setCurrentTime, setDuration, setPlaying, setVocalEnergy])
-
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio || !src) return
-    if (isPlaying) {
-      audio.play().catch(() => setPlaying(false))
-    } else {
-      audio.pause()
-    }
-  }, [isPlaying, src, setPlaying])
-
-  useEffect(() => {
-    const audio = audioRef.current
-    if (audio) audio.volume = volume
-  }, [volume])
-
-  useEffect(() => {
-    const audio = audioRef.current
-    if (audio) audio.playbackRate = playbackRate
-  }, [playbackRate])
-
-  // Seek to pending position
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio || pendingSeekMs === null) return
-    audio.currentTime = pendingSeekMs / 1000
-    setCurrentTime(pendingSeekMs)
-    setPendingSeek(null)
-    if (!isPlaying) setPlaying(true)
-  }, [pendingSeekMs, setCurrentTime, setPendingSeek, setPlaying, isPlaying])
-
-  // Auto-stop at play range end
-  useEffect(() => {
-    if (playRangeEnd === null || !isPlaying) return
-    if (currentTimeMs >= playRangeEnd) {
-      setPlaying(false)
-      setPlayRangeEnd(null)
-    }
-  }, [currentTimeMs, playRangeEnd, isPlaying, setPlaying, setPlayRangeEnd])
-
-  useEffect(() => {
-    setCurrentTime(0)
-    setDuration(0)
-    setPlaying(false)
-  }, [src, setCurrentTime, setDuration, setPlaying])
-
   const handleSeek = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const audio = audioRef.current
-      if (!audio) return
       const time = parseFloat(e.target.value)
-      audio.currentTime = time
-      setCurrentTime(time * 1000)
+      setPendingSeek(time * 1000)
     },
-    [setCurrentTime]
+    [setPendingSeek],
   )
 
   const progress = durationMs > 0 ? (currentTimeMs / durationMs) * 100 : 0
@@ -173,7 +47,6 @@ export function AudioPlayer({ src, onRetry, isRetrying }: AudioPlayerProps) {
 
   return (
     <div className="audio-player">
-      <audio ref={audioRef} src={src} crossOrigin="anonymous" preload="auto" />
       <div className="flex items-center gap-3">
         <button
           onClick={() => setPlaying(!isPlaying)}

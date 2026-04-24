@@ -32,7 +32,8 @@ export function SongPage() {
   const _vocalEnergy = usePlayerStore((s) => s.vocalEnergy)
   const setNowPlaying = usePlayerStore((s) => s.setNowPlaying)
   void _vocalEnergy
-  const [audioUrl, setAudioUrl] = useState<string | undefined>()
+  const audioSrc = usePlayerStore((s) => s.audioSrc)
+  const setAudioSrc = usePlayerStore((s) => s.setAudioSrc)
   const [isRetryingAudio, setIsRetryingAudio] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editSong, setEditSong] = useState<Song | null>(null)
@@ -92,15 +93,15 @@ export function SongPage() {
 
   useEffect(() => {
     if (song) {
-      ensureAudioUrl(song).then((s) => setAudioUrl(s.audioUrl))
+      ensureAudioUrl(song).then((s) => setAudioSrc(s.audioUrl))
     }
-  }, [song])
+  }, [song, setAudioSrc])
 
   const handleRetryAudio = () => {
     if (!song) return
     setIsRetryingAudio(true)
     ensureAudioUrl(song, true).then((s) => {
-      setAudioUrl(s.audioUrl)
+      setAudioSrc(s.audioUrl)
       setIsRetryingAudio(false)
     })
   }
@@ -231,22 +232,19 @@ export function SongPage() {
     }, 50)
   }
 
-  const albumDom = albumColors?.dark ?? safePanelColor
-  const albumAccent = albumColors?.dominant ?? safeAccentColor
-
   return (
     <div
       className="page-shell pb-8 overflow-x-hidden"
       style={{
         ['--lyrics-panel-bg' as string]: albumColors
-          ? `linear-gradient(135deg, ${toRgba(albumDom, 0.92)}, ${toRgba(albumColors.palette[2] ?? albumDom, 0.85)})`
+          ? `linear-gradient(135deg, ${toRgba(albumColors.dark, 0.94)}, ${toRgba(darkenHex(albumColors.palette[2] ?? albumColors.dark, 0.3), 0.88)})`
           : toRgba(safePanelColor, Math.max(appearance.lyricsPanelOpacity, 0.76)),
         ['--lyrics-line-base-bg' as string]: toRgba(safePrimaryColor, Math.max(appearance.lyricsLineOpacity, 0.12)),
         ['--lyrics-primary-color' as string]: safePrimaryColor,
-        ['--lyrics-accent-color' as string]: albumAccent,
-        ['--lyrics-furigana-color' as string]: albumAccent,
-        ['--ktv-highlight-color' as string]: albumColors?.light ?? safeAccentColor,
-        ['--lyrics-active-bg' as string]: toRgba(albumAccent, 0.18),
+        ['--lyrics-accent-color' as string]: albumColors ? albumColors.light : safeAccentColor,
+        ['--lyrics-furigana-color' as string]: albumColors ? albumColors.light : safeAccentColor,
+        ['--ktv-highlight-color' as string]: albumColors ? albumColors.light : safeAccentColor,
+        ['--lyrics-active-bg' as string]: toRgba(albumColors ? albumColors.light : safeAccentColor, 0.15),
         ['--lyrics-secondary-color' as string]: safeSecondaryColor,
         ['--lyrics-muted-color' as string]: safeSecondaryColor,
       }}
@@ -258,7 +256,7 @@ export function SongPage() {
           albumArtUrl={song.albumArtUrl}
           album={song.album}
         />
-        <AudioPlayer src={audioUrl} onRetry={handleRetryAudio} isRetrying={isRetryingAudio} />
+        <AudioPlayer src={audioSrc} onRetry={handleRetryAudio} isRetrying={isRetryingAudio} />
         <div className="flex items-center gap-2 flex-wrap">
           <TogglePill active={showFurigana} onClick={() => setShowFurigana((v) => !v)}>
             平假名
@@ -935,6 +933,11 @@ function getLineWindow(
   const fallbackEnd = lineIndex + 1 < lines.length ? lines[lineIndex + 1].timeMs : start + 5000
   const end = calibration?.endMs ?? fallbackEnd
   return { start, end: Math.max(end, start) }
+}
+
+function darkenHex(hex: string, amount: number): string {
+  const { r, g, b } = hexToRgb(hex) ?? { r: 15, g: 23, b: 42 }
+  return rgbToHex({ r: r * (1 - amount), g: g * (1 - amount), b: b * (1 - amount) })
 }
 
 function toRgba(hex: string | undefined, alpha: number | undefined): string {

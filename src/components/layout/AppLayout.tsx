@@ -1,6 +1,7 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import { MiniPlayer } from '../player/MiniPlayer'
+import { GlobalAudio } from '../player/GlobalAudio'
 import backgroundUrl from '../../../background.jpeg'
 import { useUIStore } from '../../stores/ui-store'
 
@@ -25,6 +26,7 @@ export function AppLayout() {
         className="fixed inset-0 pointer-events-none"
         style={{ backgroundColor: `rgba(255, 255, 255, ${appearance.overlayOpacity})` }}
       />
+      <GlobalAudio />
       {showBack && (
         <button
           onClick={() => navigate(-1)}

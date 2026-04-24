@@ -17,6 +17,7 @@ interface PlayerState {
   playRangeEnd: number | null
   playbackRate: number
   nowPlaying: NowPlaying | null
+  audioSrc: string | undefined
   setCurrentTime: (ms: number) => void
   setDuration: (ms: number) => void
   setPlaying: (playing: boolean) => void
@@ -26,6 +27,7 @@ interface PlayerState {
   setPlayRangeEnd: (ms: number | null) => void
   setPlaybackRate: (rate: number) => void
   setNowPlaying: (info: NowPlaying | null) => void
+  setAudioSrc: (src: string | undefined) => void
 }
 
 export const usePlayerStore = create<PlayerState>()((set) => ({
@@ -38,6 +40,7 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   playRangeEnd: null,
   playbackRate: 1,
   nowPlaying: null,
+  audioSrc: undefined,
 
   setCurrentTime: (ms) => set({ currentTimeMs: ms }),
   setDuration: (ms) => set({ durationMs: ms }),
@@ -48,4 +51,5 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   setPlayRangeEnd: (ms) => set({ playRangeEnd: ms }),
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
   setNowPlaying: (info) => set({ nowPlaying: info }),
+  setAudioSrc: (src) => set({ audioSrc: src }),
 }))
