@@ -1,5 +1,12 @@
 import { create } from 'zustand'
 
+interface NowPlaying {
+  title: string
+  artist: string
+  albumArtUrl?: string
+  neteaseId: number
+}
+
 interface PlayerState {
   currentTimeMs: number
   durationMs: number
@@ -9,6 +16,7 @@ interface PlayerState {
   pendingSeekMs: number | null
   playRangeEnd: number | null
   playbackRate: number
+  nowPlaying: NowPlaying | null
   setCurrentTime: (ms: number) => void
   setDuration: (ms: number) => void
   setPlaying: (playing: boolean) => void
@@ -17,6 +25,7 @@ interface PlayerState {
   setPendingSeek: (ms: number | null) => void
   setPlayRangeEnd: (ms: number | null) => void
   setPlaybackRate: (rate: number) => void
+  setNowPlaying: (info: NowPlaying | null) => void
 }
 
 export const usePlayerStore = create<PlayerState>()((set) => ({
@@ -28,6 +37,7 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   pendingSeekMs: null,
   playRangeEnd: null,
   playbackRate: 1,
+  nowPlaying: null,
 
   setCurrentTime: (ms) => set({ currentTimeMs: ms }),
   setDuration: (ms) => set({ durationMs: ms }),
@@ -37,4 +47,5 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   setPendingSeek: (ms) => set({ pendingSeekMs: ms }),
   setPlayRangeEnd: (ms) => set({ playRangeEnd: ms }),
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
+  setNowPlaying: (info) => set({ nowPlaying: info }),
 }))

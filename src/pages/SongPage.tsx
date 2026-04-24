@@ -10,6 +10,8 @@ import { useUIStore } from '../stores/ui-store'
 import { ensureAudioUrl } from '../services/lyrics-service'
 import { confirmFuriganaToken, ensureSongPersisted, ignoreMediumConfidenceLine, regenerateFurigana, setIgnoreAllMediumConfidenceHints, updateLyrics } from '../services/song-service'
 import { computeDictionaryRomaji } from '../lib/furigana-service'
+import { extractColorsCached } from '../lib/color-extract'
+import type { ExtractedColors } from '../lib/color-extract'
 import { listSavedLines, listSavedWords, toggleSavedLine, toggleSavedWord } from '../services/collections-service'
 import type { Song, FuriganaToken } from '../types'
 
@@ -28,6 +30,7 @@ export function SongPage() {
   const setPlayRangeEnd = usePlayerStore((s) => s.setPlayRangeEnd)
   const setPlaying = usePlayerStore((s) => s.setPlaying)
   const _vocalEnergy = usePlayerStore((s) => s.vocalEnergy)
+  const setNowPlaying = usePlayerStore((s) => s.setNowPlaying)
   void _vocalEnergy
   const [audioUrl, setAudioUrl] = useState<string | undefined>()
   const [isRetryingAudio, setIsRetryingAudio] = useState(false)
@@ -61,10 +64,31 @@ export function SongPage() {
     feedback?: { tone: 'success' | 'error'; text: string }
   } | null>(null)
   const appearance = useUIStore((s) => s.appearance)
+  const [albumColors, setAlbumColors] = useState<ExtractedColors | null>(null)
+
+  useEffect(() => {
+    if (song?.albumArtUrl) {
+      extractColorsCached(song.albumArtUrl).then(setAlbumColors)
+    } else {
+      setAlbumColors(null)
+    }
+  }, [song?.albumArtUrl])
+
   const safePanelColor = ensurePanelColor(appearance.lyricsPanelColor)
   const safePrimaryColor = ensureReadableTextColor(appearance.lyricsTextColor, safePanelColor, 5.2)
   const safeSecondaryColor = ensureReadableTextColor(appearance.lyricsSubtextColor, safePanelColor, 4)
   const safeAccentColor = ensureReadableTextColor(appearance.lyricsAccentColor, safePanelColor, 3.2)
+
+  useEffect(() => {
+    if (song) {
+      setNowPlaying({
+        title: song.title,
+        artist: song.artist,
+        albumArtUrl: song.albumArtUrl,
+        neteaseId: song.neteaseId,
+      })
+    }
+  }, [song, setNowPlaying])
 
   useEffect(() => {
     if (song) {
@@ -207,17 +231,22 @@ export function SongPage() {
     }, 50)
   }
 
+  const albumDom = albumColors?.dark ?? safePanelColor
+  const albumAccent = albumColors?.dominant ?? safeAccentColor
+
   return (
     <div
       className="page-shell pb-8 overflow-x-hidden"
       style={{
-        ['--lyrics-panel-bg' as string]: toRgba(safePanelColor, Math.max(appearance.lyricsPanelOpacity, 0.76)),
+        ['--lyrics-panel-bg' as string]: albumColors
+          ? `linear-gradient(135deg, ${toRgba(albumDom, 0.92)}, ${toRgba(albumColors.palette[2] ?? albumDom, 0.85)})`
+          : toRgba(safePanelColor, Math.max(appearance.lyricsPanelOpacity, 0.76)),
         ['--lyrics-line-base-bg' as string]: toRgba(safePrimaryColor, Math.max(appearance.lyricsLineOpacity, 0.12)),
         ['--lyrics-primary-color' as string]: safePrimaryColor,
-        ['--lyrics-accent-color' as string]: safeAccentColor,
-        ['--lyrics-furigana-color' as string]: safeAccentColor,
-        ['--ktv-highlight-color' as string]: safeAccentColor,
-        ['--lyrics-active-bg' as string]: toRgba(safeAccentColor, 0.18),
+        ['--lyrics-accent-color' as string]: albumAccent,
+        ['--lyrics-furigana-color' as string]: albumAccent,
+        ['--ktv-highlight-color' as string]: albumColors?.light ?? safeAccentColor,
+        ['--lyrics-active-bg' as string]: toRgba(albumAccent, 0.18),
         ['--lyrics-secondary-color' as string]: safeSecondaryColor,
         ['--lyrics-muted-color' as string]: safeSecondaryColor,
       }}

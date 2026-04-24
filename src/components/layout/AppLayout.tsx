@@ -1,5 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
+import { MiniPlayer } from '../player/MiniPlayer'
 import backgroundUrl from '../../../background.jpeg'
 import { useUIStore } from '../../stores/ui-store'
 
@@ -38,6 +39,7 @@ export function AppLayout() {
       <main className="relative z-10 flex-1 pb-20">
         <Outlet />
       </main>
+      <MiniPlayer />
       <div className="relative z-10">
         <BottomNav />
       </div>
