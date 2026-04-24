@@ -99,6 +99,10 @@ ruby rt {
   transform: scale(1.025);
 }
 
+.lyrics-line.played {
+  opacity: 0.5;
+}
+
 .lyrics-line-base {
   position: absolute;
   inset: 0.15rem 0;

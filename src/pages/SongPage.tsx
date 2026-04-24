@@ -366,7 +366,7 @@ export function SongPage() {
               <div
                 key={i}
                 className={`lyrics-line relative px-4 py-1.5 ${
-                  isActive ? 'active' : ''
+                  isActive ? 'active' : i < currentLineIndex ? 'played' : ''
                 } cursor-pointer`}
                 onClick={() => jumpToLineAndPlay(i)}
               >
