@@ -18,7 +18,7 @@ export function SettingsPage() {
 
   return (
     <div className="page-shell p-6">
-      <div className="mb-6 rounded-lg bg-surface/68 backdrop-blur-sm px-4 py-3">
+      <div className="mb-6 rounded-2xl bg-surface/70 backdrop-blur-sm px-5 py-4 shadow-sm border border-border/40">
         <h2 className="text-2xl font-bold text-text">设置</h2>
       </div>
 

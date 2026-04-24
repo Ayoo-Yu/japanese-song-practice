@@ -22,8 +22,8 @@ export function PracticeSelectPage() {
 
   return (
     <div className="page-shell p-6">
-      <div className="mb-6 rounded-lg bg-surface/68 backdrop-blur-sm px-4 py-3">
-        <h2 className="text-2xl font-bold text-text mb-2">歌词练习</h2>
+      <div className="mb-6 rounded-2xl bg-surface/70 backdrop-blur-sm px-5 py-4 shadow-sm border border-border/40">
+        <h2 className="text-2xl font-bold text-text mb-1">歌词练习</h2>
         <p className="text-text-secondary text-sm">选择歌曲开始练习读音</p>
       </div>
 
@@ -70,7 +70,7 @@ export function PracticeSelectPage() {
             <Link
               key={song.id}
               to={`/practice/${song.neteaseId}?type=${quizType}`}
-              className="flex items-center gap-4 p-4 rounded-xl bg-surface-alt hover:bg-surface-muted transition-colors"
+              className="flex items-center gap-4 p-4 rounded-xl bg-surface-alt/80 shadow-sm hover:shadow-md border border-border/40 hover:bg-surface-alt transition-all duration-200"
             >
               {song.albumArtUrl ? (
                 <img
@@ -78,7 +78,7 @@ export function PracticeSelectPage() {
                   alt={song.album ?? song.title}
                   width={52}
                   height={52}
-                  className="rounded-lg object-cover shrink-0"
+                  className="rounded-xl object-cover shrink-0 shadow-sm"
                 />
               ) : (
                 <div className="w-[52px] h-[52px] rounded-lg bg-surface-muted flex items-center justify-center text-2xl shrink-0">

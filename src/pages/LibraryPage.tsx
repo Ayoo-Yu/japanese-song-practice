@@ -54,7 +54,7 @@ export function LibraryPage() {
 
   return (
     <div className="page-shell p-6">
-      <div className="flex items-center justify-between gap-4 mb-6 rounded-lg bg-surface/68 backdrop-blur-sm px-4 py-3">
+      <div className="flex items-center justify-between gap-4 mb-6 rounded-2xl bg-surface/70 backdrop-blur-sm px-5 py-4 shadow-sm border border-border/40">
         <h2 className="text-2xl font-bold text-text">我的曲库</h2>
         {tab === 'songs' && songs.length > 0 && (
           <button
@@ -92,7 +92,7 @@ export function LibraryPage() {
             <div key={song.id} className="relative">
               <Link
                 to={`/song/${song.neteaseId}`}
-                className={`flex items-center gap-4 p-4 rounded-xl bg-surface-alt hover:bg-surface-muted transition-colors ${
+                className={`flex items-center gap-4 p-4 rounded-xl bg-surface-alt/80 shadow-sm hover:shadow-md border border-border/40 hover:bg-surface-alt transition-all duration-200 ${
                   managing ? 'pr-14' : ''
                 }`}
               >
@@ -102,7 +102,7 @@ export function LibraryPage() {
                     alt={song.album ?? song.title}
                     width={52}
                     height={52}
-                    className="rounded-lg object-cover shrink-0"
+                    className="rounded-xl object-cover shrink-0 shadow-sm"
                   />
                 ) : (
                   <div className="w-[52px] h-[52px] rounded-lg bg-surface-muted flex items-center justify-center text-2xl shrink-0">
@@ -161,7 +161,7 @@ export function LibraryPage() {
             ) : (
               <div className="flex flex-col gap-3">
                 {filteredWords.map((word) => (
-                  <div key={word.id} className="p-4 rounded-xl bg-surface-alt">
+                  <div key={word.id} className="p-4 rounded-xl bg-surface-alt/80 shadow-sm border border-border/40 hover:shadow-md transition-all duration-200">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-lg font-semibold text-text">{word.surface}</div>
@@ -210,7 +210,7 @@ export function LibraryPage() {
             ) : (
               <div className="flex flex-col gap-3">
                 {filteredLines.map((line) => (
-                  <div key={line.id} className="p-4 rounded-xl bg-surface-alt">
+                  <div key={line.id} className="p-4 rounded-xl bg-surface-alt/80 shadow-sm border border-border/40 hover:shadow-md transition-all duration-200">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <p className="text-text font-medium">{line.lineText}</p>
@@ -264,6 +264,7 @@ function LibraryTab({ active, onClick, children }: { active: boolean; onClick: (
 function EmptyCollection({ text }: { text: string }) {
   return (
     <div className="text-center py-16">
+      <div className="text-4xl mb-3 opacity-40">📝</div>
       <p className="text-text-muted">{text}</p>
     </div>
   )

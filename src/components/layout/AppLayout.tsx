@@ -27,11 +27,11 @@ export function AppLayout() {
       {showBack && (
         <button
           onClick={() => navigate(-1)}
-          className="fixed top-4 left-4 z-50 w-10 h-10 rounded-full bg-surface/80 backdrop-blur-sm shadow-md flex items-center justify-center text-text-secondary active:scale-90 transition-transform"
+          className="fixed top-4 left-4 z-50 w-10 h-10 rounded-full bg-surface/80 backdrop-blur-sm shadow-md flex items-center justify-center text-text-secondary hover:text-text hover:bg-surface active:scale-90 transition-all duration-200"
           aria-label="返回"
         >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12.5 15L7.5 10L12.5 5" />
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 15L7.5 10L13 5" />
           </svg>
         </button>
       )}
