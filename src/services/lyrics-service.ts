@@ -172,13 +172,14 @@ export async function createSongFromSearch(result: {
   return saveSong(song)
 }
 
-export async function ensureAudioUrl(song: Song): Promise<Song> {
-  if (!song.audioUrl || !song.audioUrlFetchedAt) {
+export async function ensureAudioUrl(song: Song, force = false): Promise<Song> {
+  if (force || !song.audioUrl || !song.audioUrlFetchedAt) {
     const url = await getSongUrl(song.neteaseId)
     if (url && song.id) {
       await updateAudioUrl(song.id, url)
       return { ...song, audioUrl: url, audioUrlFetchedAt: new Date().toISOString() }
     }
+    return song
   }
 
   const fetchedAt = song.audioUrlFetchedAt ? new Date(song.audioUrlFetchedAt) : null

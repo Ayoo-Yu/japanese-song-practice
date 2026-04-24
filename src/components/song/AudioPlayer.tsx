@@ -3,9 +3,11 @@ import { usePlayerStore } from '../../stores/player-store'
 
 interface AudioPlayerProps {
   src?: string
+  onRetry?: () => void
+  isRetrying?: boolean
 }
 
-export function AudioPlayer({ src }: AudioPlayerProps) {
+export function AudioPlayer({ src, onRetry, isRetrying }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const volume = usePlayerStore((s) => s.volume)
@@ -19,6 +21,10 @@ export function AudioPlayer({ src }: AudioPlayerProps) {
   const playRangeEnd = usePlayerStore((s) => s.playRangeEnd)
   const setPendingSeek = usePlayerStore((s) => s.setPendingSeek)
   const setPlayRangeEnd = usePlayerStore((s) => s.setPlayRangeEnd)
+  const playbackRate = usePlayerStore((s) => s.playbackRate)
+  const setPlaybackRate = usePlayerStore((s) => s.setPlaybackRate)
+
+  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
   useEffect(() => {
     const audio = audioRef.current
@@ -105,6 +111,11 @@ export function AudioPlayer({ src }: AudioPlayerProps) {
     if (audio) audio.volume = volume
   }, [volume])
 
+  useEffect(() => {
+    const audio = audioRef.current
+    if (audio) audio.playbackRate = playbackRate
+  }, [playbackRate])
+
   // Seek to pending position
   useEffect(() => {
     const audio = audioRef.current
@@ -147,6 +158,15 @@ export function AudioPlayer({ src }: AudioPlayerProps) {
     return (
       <div className="px-4 py-3 text-center">
         <p className="text-text-muted text-sm">暂无音频源（可能需要 VIP）</p>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            disabled={isRetrying}
+            className="mt-2 px-4 py-1.5 rounded-full text-sm font-medium bg-accent text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {isRetrying ? '获取中...' : '重试获取音源'}
+          </button>
+        )}
       </div>
     )
   }
@@ -188,6 +208,29 @@ export function AudioPlayer({ src }: AudioPlayerProps) {
         <span className="text-xs text-text-muted tabular-nums w-10">
           {formatTime(durationMs)}
         </span>
+        <button
+          onClick={() => {
+            const idx = SPEEDS.indexOf(playbackRate)
+            if (idx > 0) setPlaybackRate(SPEEDS[idx - 1])
+          }}
+          disabled={playbackRate === SPEEDS[0]}
+          className="w-6 h-6 rounded text-xs font-bold bg-surface-alt text-text-secondary border border-border hover:border-accent disabled:opacity-30 shrink-0 flex items-center justify-center"
+        >
+          -
+        </button>
+        <span className="text-xs font-medium text-text-secondary tabular-nums w-8 text-center shrink-0">
+          {playbackRate}x
+        </span>
+        <button
+          onClick={() => {
+            const idx = SPEEDS.indexOf(playbackRate)
+            if (idx < SPEEDS.length - 1) setPlaybackRate(SPEEDS[idx + 1])
+          }}
+          disabled={playbackRate === SPEEDS[SPEEDS.length - 1]}
+          className="w-6 h-6 rounded text-xs font-bold bg-surface-alt text-text-secondary border border-border hover:border-accent disabled:opacity-30 shrink-0 flex items-center justify-center"
+        >
+          +
+        </button>
       </div>
     </div>
   )

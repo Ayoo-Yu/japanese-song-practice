@@ -5,9 +5,10 @@ interface QuizCardProps {
   selectedAnswer: number | null
   showResult: boolean
   onAnswer: (index: number) => void
+  onSpeak?: (text: string) => void
 }
 
-export function QuizCard({ question, selectedAnswer, showResult, onAnswer }: QuizCardProps) {
+export function QuizCard({ question, selectedAnswer, showResult, onAnswer, onSpeak }: QuizCardProps) {
   return (
     <div className="space-y-5">
       <div className="text-center py-4">
@@ -20,13 +21,25 @@ export function QuizCard({ question, selectedAnswer, showResult, onAnswer }: Qui
             {question.japaneseText}
           </p>
         )}
-        <p className="text-sm text-text-muted mt-2">
-          {question.type === 'romaji'
-            ? '选择正确的罗马音'
-            : question.type === 'furigana'
-              ? '选择正确的读法'
-              : '选择正确的翻译'}
-        </p>
+        <div className="flex items-center justify-center gap-3 mt-2">
+          <p className="text-sm text-text-muted">
+            {question.type === 'romaji'
+              ? '选择正确的罗马音'
+              : question.type === 'furigana'
+                ? '选择正确的读法'
+                : question.type === 'pronunciation'
+                  ? '听读音，选择正确的罗马音'
+                  : '选择正确的翻译'}
+          </p>
+          {question.type === 'pronunciation' && onSpeak && (
+            <button
+              onClick={() => onSpeak(question.japaneseText)}
+              className="px-3 py-1 rounded-full text-xs font-medium bg-accent/15 text-accent border border-accent/25 hover:bg-accent/25 transition-colors"
+            >
+              朗读
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">

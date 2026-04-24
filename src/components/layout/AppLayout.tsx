@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import backgroundUrl from '../../../background.jpeg'
 import { useUIStore } from '../../stores/ui-store'
@@ -6,6 +6,9 @@ import { useUIStore } from '../../stores/ui-store'
 export function AppLayout() {
   const appearance = useUIStore((s) => s.appearance)
   const bgUrl = appearance.backgroundImage || backgroundUrl
+  const location = useLocation()
+  const navigate = useNavigate()
+  const showBack = location.pathname !== '/'
 
   return (
     <div className="relative flex flex-col min-h-svh text-text font-sans overflow-hidden">
@@ -21,6 +24,17 @@ export function AppLayout() {
         className="fixed inset-0 pointer-events-none"
         style={{ backgroundColor: `rgba(255, 255, 255, ${appearance.overlayOpacity})` }}
       />
+      {showBack && (
+        <button
+          onClick={() => navigate(-1)}
+          className="fixed top-4 left-4 z-50 w-10 h-10 rounded-full bg-surface/80 backdrop-blur-sm shadow-md flex items-center justify-center text-text-secondary active:scale-90 transition-transform"
+          aria-label="返回"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12.5 15L7.5 10L12.5 5" />
+          </svg>
+        </button>
+      )}
       <main className="relative z-10 flex-1 pb-20">
         <Outlet />
       </main>

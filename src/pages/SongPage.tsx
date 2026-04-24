@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useAnnotatedSong } from '../hooks/useAnnotatedSong'
+import { useSpeech } from '../hooks/useSpeech'
 import { SongHeader } from '../components/song/SongHeader'
 import { AudioPlayer } from '../components/song/AudioPlayer'
 import { LyricsEditor } from '../components/song/LyricsEditor'
@@ -29,6 +30,7 @@ export function SongPage() {
   const _vocalEnergy = usePlayerStore((s) => s.vocalEnergy)
   void _vocalEnergy
   const [audioUrl, setAudioUrl] = useState<string | undefined>()
+  const [isRetryingAudio, setIsRetryingAudio] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editSong, setEditSong] = useState<Song | null>(null)
   const lyricsRef = useRef<HTMLDivElement>(null)
@@ -48,6 +50,8 @@ export function SongPage() {
     text: string
   } | null>(null)
   const [furiganaHint, setFuriganaHint] = useState<FuriganaHint | null>(null)
+  const [speakingLineIndex, setSpeakingLineIndex] = useState<number | null>(null)
+  const { speak, stop: stopSpeech } = useSpeech()
   const [romajiEdit, setRomajiEdit] = useState<{
     lineIndex: number
     value: string
@@ -67,6 +71,15 @@ export function SongPage() {
       ensureAudioUrl(song).then((s) => setAudioUrl(s.audioUrl))
     }
   }, [song])
+
+  const handleRetryAudio = () => {
+    if (!song) return
+    setIsRetryingAudio(true)
+    ensureAudioUrl(song, true).then((s) => {
+      setAudioUrl(s.audioUrl)
+      setIsRetryingAudio(false)
+    })
+  }
 
   useEffect(() => {
     Promise.all([listSavedWords(), listSavedLines()]).then(([words, lines]) => {
@@ -216,7 +229,7 @@ export function SongPage() {
           albumArtUrl={song.albumArtUrl}
           album={song.album}
         />
-        <AudioPlayer src={audioUrl} />
+        <AudioPlayer src={audioUrl} onRetry={handleRetryAudio} isRetrying={isRetryingAudio} />
         <div className="flex items-center gap-2 flex-wrap">
           <TogglePill active={showFurigana} onClick={() => setShowFurigana((v) => !v)}>
             平假名
@@ -322,34 +335,57 @@ export function SongPage() {
               >
                 <div className="lyrics-line-base" />
                 <div className={`lyrics-line-bg ${isActive ? 'active' : ''}`} />
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation()
-                    const saved = await toggleSavedLine({
-                      id: lineId,
-                      neteaseId: song.neteaseId,
-                      songTitle: song.title,
-                      artist: song.artist,
-                      lineIndex: i,
-                      lineText: line.original,
-                      romaji: line.romaji || undefined,
-                      translation: line.translation || undefined,
-                    })
-                    setSavedLineIds((prev) => {
-                      const next = new Set(prev)
-                      if (saved) next.add(lineId)
-                      else next.delete(lineId)
-                      return next
-                    })
-                  }}
-                  className={`absolute right-2 top-2 z-20 rounded px-2 py-1 text-[11px] font-medium transition-colors ${
-                    lineSaved
-                      ? 'bg-accent/20 text-accent ring-1 ring-accent/25'
-                      : 'bg-surface/82 text-text-secondary ring-1 ring-black/8 hover:bg-surface'
-                  }`}
-                >
-                  {lineSaved ? '已收藏' : '收藏句子'}
-                </button>
+                <div className="absolute right-2 top-2 z-20 flex gap-1">
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const saved = await toggleSavedLine({
+                        id: lineId,
+                        neteaseId: song.neteaseId,
+                        songTitle: song.title,
+                        artist: song.artist,
+                        lineIndex: i,
+                        lineText: line.original,
+                        romaji: line.romaji || undefined,
+                        translation: line.translation || undefined,
+                      })
+                      setSavedLineIds((prev) => {
+                        const next = new Set(prev)
+                        if (saved) next.add(lineId)
+                        else next.delete(lineId)
+                        return next
+                      })
+                    }}
+                    className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                      lineSaved
+                        ? 'bg-accent/20 text-accent ring-1 ring-accent/25'
+                        : 'bg-surface/82 text-text-secondary ring-1 ring-black/8 hover:bg-surface'
+                    }`}
+                  >
+                    {lineSaved ? '已收藏' : '收藏'}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (speakingLineIndex === i) {
+                        stopSpeech()
+                        setSpeakingLineIndex(null)
+                      } else {
+                        stopSpeech()
+                        speak(line.original)
+                        setSpeakingLineIndex(i)
+                        setTimeout(() => setSpeakingLineIndex(null), 3000)
+                      }
+                    }}
+                    className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                      speakingLineIndex === i
+                        ? 'bg-accent/30 text-accent ring-1 ring-accent/25'
+                        : 'bg-surface/82 text-text-secondary ring-1 ring-black/8 hover:bg-surface'
+                    }`}
+                  >
+                    {speakingLineIndex === i ? '朗读中' : '朗读'}
+                  </button>
+                </div>
                 <div className="relative z-10">
                   <KTVLine progress={lineProgress}>
                   {hasFurigana ? (
@@ -685,7 +721,11 @@ export function SongPage() {
                     </div>
                   )}
                   {showRomaji && line.romaji && (
-                    <div className="romaji">{line.romaji}</div>
+                    <div className="romaji">
+                      <KTVLine progress={lineProgress}>
+                        {line.romaji}
+                      </KTVLine>
+                    </div>
                   )}
                   {showTranslation && line.translation && (
                     <div className="translation">{line.translation}</div>

@@ -59,6 +59,42 @@ function audioProxy(): Plugin {
   }
 }
 
+function ttsProxy(): Plugin {
+  return {
+    name: 'tts-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/tts', (req, res) => {
+        const params = new URL(req.url ?? '', 'http://localhost').searchParams
+        const text = params.get('q') ?? ''
+        if (!text) {
+          res.statusCode = 400
+          res.end('Missing q param')
+          return
+        }
+
+        const spd = params.get('spd') ?? '2'
+        const baiduUrl = `https://fanyi.baidu.com/gettts?lan=jp&text=${encodeURIComponent(text)}&spd=${spd}&source=web`
+        https.get(baiduUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://fanyi.baidu.com/',
+            'Accept': '*/*',
+            'Accept-Encoding': 'identity',
+          },
+        }, (proxyRes) => {
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Content-Type', proxyRes.headers['content-type'] ?? 'audio/mpeg')
+          res.writeHead(proxyRes.statusCode ?? 502)
+          proxyRes.pipe(res)
+        }).on('error', () => {
+          res.statusCode = 502
+          res.end('TTS proxy error')
+        })
+      })
+    },
+  }
+}
+
 function kuromojiDictPlugin(): Plugin {
   return {
     name: 'kuromoji-dict',
@@ -117,7 +153,7 @@ export default defineConfig(({ mode }) => {
   const devPort = Number(env.PORT || 4173)
 
   return {
-    plugins: [react(), tailwindcss(), audioProxy(), kuromojiDictPlugin(), neteaseQRLogin()],
+    plugins: [react(), tailwindcss(), audioProxy(), ttsProxy(), kuromojiDictPlugin(), neteaseQRLogin()],
     server: {
       host: '127.0.0.1',
       port: Number.isFinite(devPort) ? devPort : 4173,

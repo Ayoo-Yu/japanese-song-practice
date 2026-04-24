@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { getAnnotatedSong } from '../services/lyrics-service'
 import { buildQuizSession } from '../services/quiz-service'
@@ -8,6 +8,18 @@ import { QuizProgress } from '../components/practice/QuizProgress'
 import { QuizCorrection } from '../components/practice/QuizCorrection'
 import type { Song } from '../types'
 import type { QuizSession, QuizType } from '../services/quiz-service'
+
+function useQuizSpeech() {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  return useCallback((text: string) => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+    }
+    const audio = new Audio(`/api/tts?q=${encodeURIComponent(text)}&spd=2`)
+    audioRef.current = audio
+    audio.play().catch(() => {})
+  }, [])
+}
 
 export function PracticeQuizPage() {
   const { id } = useParams<{ id: string }>()
@@ -21,6 +33,7 @@ export function PracticeQuizPage() {
   const [showResult, setShowResult] = useState(false)
   const [isFinished, setIsFinished] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const speak = useQuizSpeech()
 
   useEffect(() => {
     if (!neteaseId || Number.isNaN(neteaseId)) return
@@ -124,7 +137,7 @@ export function PracticeQuizPage() {
   }
 
   const handleCorrection = async (value: string) => {
-    if (question.type === 'romaji' && question.correctRomaji !== undefined) {
+    if ((question.type === 'romaji' || question.type === 'pronunciation') && question.correctRomaji !== undefined) {
       const updated = await updateLyrics(song.neteaseId, [
         { timeMs: question.timeMs, romaji: value },
       ])
@@ -151,7 +164,7 @@ export function PracticeQuizPage() {
   }
 
   const correctAnswer =
-    question.type === 'romaji'
+    question.type === 'romaji' || question.type === 'pronunciation'
       ? question.correctRomaji ?? ''
       : question.type === 'furigana'
         ? question.correctReading ?? ''
@@ -173,6 +186,7 @@ export function PracticeQuizPage() {
         selectedAnswer={selectedAnswer}
         showResult={showResult}
         onAnswer={handleAnswer}
+        onSpeak={speak}
       />
 
       {showResult && selectedAnswer !== question.correctIndex && (

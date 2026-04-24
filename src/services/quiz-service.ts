@@ -1,7 +1,7 @@
 import { generateDistractors } from '../lib/distractors'
 import type { Song } from '../types'
 
-export type QuizType = 'romaji' | 'furigana' | 'translation'
+export type QuizType = 'romaji' | 'furigana' | 'translation' | 'pronunciation'
 
 export interface QuizQuestion {
   type: QuizType
@@ -131,7 +131,7 @@ export function buildQuizSession(
 ): QuizSession {
   const questions: QuizQuestion[] = []
 
-  if (type === 'romaji') {
+  if (type === 'romaji' || type === 'pronunciation') {
     const pool = extractRomajiPool(song)
     const candidates = shuffle(
       (song.lrcParsed ?? [])
@@ -144,7 +144,10 @@ export function buildQuizSession(
     for (const i of candidates) {
       if (questions.length >= maxQuestions) break
       const q = buildRomajiQuestion(song, i, pool)
-      if (q) questions.push(q)
+      if (q) {
+        q.type = type
+        questions.push(q)
+      }
     }
   } else if (type === 'translation') {
     const pool = extractTranslationPool(song)

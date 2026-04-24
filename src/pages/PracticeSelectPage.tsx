@@ -46,6 +46,12 @@ export function PracticeSelectPage() {
         >
           歌词翻译
         </TypePill>
+        <TypePill
+          active={quizType === 'pronunciation'}
+          onClick={() => setSearchParams({ type: 'pronunciation' })}
+        >
+          读音练习
+        </TypePill>
       </div>
 
       {practiceable.length === 0 ? (

@@ -28,7 +28,7 @@ export function QuizCorrection({ correctAnswer, quizType, onSave, onSkip }: Quiz
         正确答案: <span className="font-medium text-text">{correctAnswer}</span>
       </p>
       <p className="text-xs text-text-muted">
-        {quizType === 'romaji'
+        {quizType === 'romaji' || quizType === 'pronunciation'
           ? '如果罗马音有误，修正后会同步到歌曲数据'
           : '如果假名注音有误，修正后会同步到歌曲数据'}
       </p>
