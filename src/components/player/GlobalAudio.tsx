@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { usePlayerStore } from '../../stores/player-store'
 
 export function GlobalAudio() {
@@ -14,64 +14,46 @@ export function GlobalAudio() {
   const setDuration = usePlayerStore((s) => s.setDuration)
   const setPlaying = usePlayerStore((s) => s.setPlaying)
   const setVocalEnergy = usePlayerStore((s) => s.setVocalEnergy)
+  void setVocalEnergy
   const setPendingSeek = usePlayerStore((s) => s.setPendingSeek)
   const setPlayRangeEnd = usePlayerStore((s) => s.setPlayRangeEnd)
 
-  useEffect(() => {
+  const onLoadedMetadata = useCallback(() => {
     const audio = audioRef.current
-    if (!audio || !audioSrc) return
-
-    const onLoadedMetadata = () => {
-      if (audio.duration && isFinite(audio.duration)) {
-        setDuration(audio.duration * 1000)
-      }
+    if (audio?.duration && isFinite(audio.duration)) {
+      setDuration(audio.duration * 1000)
     }
+  }, [setDuration])
 
-    let analyser: AnalyserNode | null = null
-    let freqData: Uint8Array<ArrayBuffer> | null = null
-    try {
-      const ctx = new AudioContext()
-      const source = ctx.createMediaElementSource(audio)
-      analyser = ctx.createAnalyser()
-      analyser.fftSize = 2048
-      source.connect(analyser)
-      analyser.connect(ctx.destination)
-      freqData = new Uint8Array(analyser.frequencyBinCount)
-    } catch {}
-
-    const BIN_LOW = 14
-    const BIN_HIGH = 186
-    const BIN_COUNT = BIN_HIGH - BIN_LOW
-
+  // Tick loop for time + vocal energy — runs once, reads src from DOM
+  useEffect(() => {
     let timerId: ReturnType<typeof setTimeout>
     const tick = () => {
-      setCurrentTime(audio.currentTime * 1000)
-      if (analyser && freqData) {
-        analyser.getByteFrequencyData(freqData)
-        let sum = 0
-        for (let i = BIN_LOW; i < BIN_HIGH; i++) sum += freqData[i]
-        setVocalEnergy(Math.min(100, sum / BIN_COUNT / 1.2))
+      const audio = audioRef.current
+      if (audio) {
+        setCurrentTime(audio.currentTime * 1000)
       }
       timerId = setTimeout(tick, 8)
     }
     timerId = setTimeout(tick, 8)
+    return () => clearTimeout(timerId)
+  }, [setCurrentTime])
 
+  // Audio events
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
     audio.addEventListener('durationchange', onLoadedMetadata)
     audio.addEventListener('ended', () => setPlaying(false))
     audio.addEventListener('error', () => setPlaying(false))
-
-    if (audio.duration && isFinite(audio.duration)) {
-      setDuration(audio.duration * 1000)
-    }
-
     return () => {
-      clearTimeout(timerId)
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
       audio.removeEventListener('durationchange', onLoadedMetadata)
     }
-  }, [audioSrc, setCurrentTime, setDuration, setPlaying, setVocalEnergy])
+  }, [onLoadedMetadata, setPlaying])
 
+  // Play/pause
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !audioSrc) return
@@ -82,14 +64,17 @@ export function GlobalAudio() {
     }
   }, [isPlaying, audioSrc, setPlaying])
 
+  // Volume
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume
   }, [volume])
 
+  // Playback rate
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = playbackRate
   }, [playbackRate])
 
+  // Seek
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || pendingSeekMs === null) return
@@ -99,6 +84,7 @@ export function GlobalAudio() {
     if (!isPlaying) setPlaying(true)
   }, [pendingSeekMs, setCurrentTime, setPendingSeek, setPlaying, isPlaying])
 
+  // Auto-stop at range end
   useEffect(() => {
     if (playRangeEnd === null || !isPlaying) return
     if (currentTimeMs >= playRangeEnd) {
@@ -106,8 +92,6 @@ export function GlobalAudio() {
       setPlayRangeEnd(null)
     }
   }, [currentTimeMs, playRangeEnd, isPlaying, setPlaying, setPlayRangeEnd])
-
-  if (!audioSrc) return null
 
   return <audio ref={audioRef} src={audioSrc} crossOrigin="anonymous" preload="auto" />
 }

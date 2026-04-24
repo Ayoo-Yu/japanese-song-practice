@@ -241,13 +241,13 @@ export function SongPage() {
           ? `linear-gradient(135deg, ${toRgba(albumColors.dark, 0.94)}, ${toRgba(darkenHex(albumColors.palette[2] ?? albumColors.dark, 0.3), 0.88)})`
           : toRgba(safePanelColor, Math.max(appearance.lyricsPanelOpacity, 0.76)),
         ['--lyrics-line-base-bg' as string]: toRgba(safePrimaryColor, Math.max(appearance.lyricsLineOpacity, 0.12)),
-        ['--lyrics-primary-color' as string]: safePrimaryColor,
-        ['--lyrics-accent-color' as string]: albumColors ? albumColors.light : safeAccentColor,
-        ['--lyrics-furigana-color' as string]: albumColors ? albumColors.light : safeAccentColor,
-        ['--ktv-highlight-color' as string]: albumColors ? albumColors.light : safeAccentColor,
-        ['--lyrics-active-bg' as string]: toRgba(albumColors ? albumColors.light : safeAccentColor, 0.15),
-        ['--lyrics-secondary-color' as string]: safeSecondaryColor,
-        ['--lyrics-muted-color' as string]: safeSecondaryColor,
+        ['--lyrics-primary-color' as string]: albumColors ? '#f0f0f8' : safePrimaryColor,
+        ['--lyrics-accent-color' as string]: albumColors ? '#ffffff' : safeAccentColor,
+        ['--lyrics-furigana-color' as string]: albumColors ? '#c8c8e0' : safeAccentColor,
+        ['--ktv-highlight-color' as string]: albumColors ? '#ffffff' : safeAccentColor,
+        ['--lyrics-active-bg' as string]: toRgba(albumColors ? '#ffffff' : safeAccentColor, 0.12),
+        ['--lyrics-secondary-color' as string]: albumColors ? '#b8b8d0' : safeSecondaryColor,
+        ['--lyrics-muted-color' as string]: albumColors ? '#9898b0' : safeSecondaryColor,
       }}
     >
       <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur-sm p-4 space-y-3">
