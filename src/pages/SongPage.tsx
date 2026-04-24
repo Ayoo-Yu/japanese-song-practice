@@ -76,9 +76,10 @@ export function SongPage() {
   }, [song?.albumArtUrl])
 
   const safePanelColor = ensurePanelColor(appearance.lyricsPanelColor)
-  const safePrimaryColor = ensureReadableTextColor(appearance.lyricsTextColor, safePanelColor, 5.2)
-  const safeSecondaryColor = ensureReadableTextColor(appearance.lyricsSubtextColor, safePanelColor, 4)
-  const safeAccentColor = ensureReadableTextColor(appearance.lyricsAccentColor, safePanelColor, 3.2)
+  const contrastBg = albumColors ? albumColors.dark : safePanelColor
+  const safePrimaryColor = ensureReadableTextColor(appearance.lyricsTextColor, contrastBg, 5.2)
+  const safeSecondaryColor = ensureReadableTextColor(appearance.lyricsSubtextColor, contrastBg, 4)
+  const safeAccentColor = ensureReadableTextColor(appearance.lyricsAccentColor, contrastBg, 3.2)
 
   useEffect(() => {
     if (song) {
