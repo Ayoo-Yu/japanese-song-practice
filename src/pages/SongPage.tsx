@@ -76,10 +76,17 @@ export function SongPage() {
   }, [song?.albumArtUrl])
 
   const safePanelColor = ensurePanelColor(appearance.lyricsPanelColor)
-  const contrastBg = albumColors ? albumColors.dark : safePanelColor
-  const safePrimaryColor = ensureReadableTextColor(appearance.lyricsTextColor, contrastBg, 5.2)
-  const safeSecondaryColor = ensureReadableTextColor(appearance.lyricsSubtextColor, contrastBg, 4)
-  const safeAccentColor = ensureReadableTextColor(appearance.lyricsAccentColor, contrastBg, 3.2)
+  const albumBg = albumColors?.dark
+  const contrastBg = albumBg ?? safePanelColor
+  const safePrimaryColor = albumColors
+    ? ensureReadableTextColor('#f0f0f8', contrastBg, 5.2)
+    : ensureReadableTextColor(appearance.lyricsTextColor, contrastBg, 5.2)
+  const safeSecondaryColor = albumColors
+    ? ensureReadableTextColor('#b8b8d0', contrastBg, 4)
+    : ensureReadableTextColor(appearance.lyricsSubtextColor, contrastBg, 4)
+  const safeAccentColor = albumColors
+    ? ensureReadableTextColor('#ffffff', contrastBg, 3.2)
+    : ensureReadableTextColor(appearance.lyricsAccentColor, contrastBg, 3.2)
 
   useEffect(() => {
     if (song) {
@@ -233,21 +240,23 @@ export function SongPage() {
     }, 50)
   }
 
+  const panelGradient = albumColors
+    ? `linear-gradient(135deg, ${toRgba(albumColors.dark, 0.96)}, ${toRgba(darkenHex(albumColors.palette[2] ?? albumColors.dark, 0.5), 0.92)})`
+    : toRgba(safePanelColor, Math.max(appearance.lyricsPanelOpacity, 0.76))
+
   return (
     <div
       className="page-shell pb-8 overflow-x-hidden"
       style={{
-        ['--lyrics-panel-bg' as string]: albumColors
-          ? `linear-gradient(135deg, ${toRgba(albumColors.dark, 0.94)}, ${toRgba(darkenHex(albumColors.palette[2] ?? albumColors.dark, 0.3), 0.88)})`
-          : toRgba(safePanelColor, Math.max(appearance.lyricsPanelOpacity, 0.76)),
+        ['--lyrics-panel-bg' as string]: panelGradient,
         ['--lyrics-line-base-bg' as string]: toRgba(safePrimaryColor, Math.max(appearance.lyricsLineOpacity, 0.12)),
-        ['--lyrics-primary-color' as string]: albumColors ? '#f0f0f8' : safePrimaryColor,
-        ['--lyrics-accent-color' as string]: albumColors ? '#ffffff' : safeAccentColor,
-        ['--lyrics-furigana-color' as string]: albumColors ? '#c8c8e0' : safeAccentColor,
-        ['--ktv-highlight-color' as string]: albumColors ? '#ffffff' : safeAccentColor,
-        ['--lyrics-active-bg' as string]: toRgba(albumColors ? '#ffffff' : safeAccentColor, 0.12),
-        ['--lyrics-secondary-color' as string]: albumColors ? '#b8b8d0' : safeSecondaryColor,
-        ['--lyrics-muted-color' as string]: albumColors ? '#9898b0' : safeSecondaryColor,
+        ['--lyrics-primary-color' as string]: safePrimaryColor,
+        ['--lyrics-accent-color' as string]: safeAccentColor,
+        ['--lyrics-furigana-color' as string]: safeSecondaryColor,
+        ['--ktv-highlight-color' as string]: safeAccentColor,
+        ['--lyrics-active-bg' as string]: toRgba(safeAccentColor, 0.12),
+        ['--lyrics-secondary-color' as string]: safeSecondaryColor,
+        ['--lyrics-muted-color' as string]: safeSecondaryColor,
       }}
     >
       <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur-sm p-4 space-y-3">

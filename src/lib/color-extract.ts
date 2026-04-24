@@ -67,7 +67,8 @@ export function extractColorsFromImage(
 
   const dominant = pickVibrant(sorted) ?? sorted[0]
   const palette = buildPalette(sorted, dominant)
-  const dark = darken(dominant, 0.35)
+  // Always force dark enough for light text: mix album color with near-black
+  const dark = mixWithBlack(dominant, 0.82)
   const light = lighten(dominant, 0.3)
 
   return {
@@ -139,11 +140,12 @@ function rgbToHex({ r, g, b }: { r: number; g: number; b: number }): string {
     .join('')}`
 }
 
-function darken(c: { r: number; g: number; b: number }, amount: number): { r: number; g: number; b: number } {
+// Mix album color toward near-black — guarantees background is always dark
+function mixWithBlack(c: { r: number; g: number; b: number }, blackRatio: number): { r: number; g: number; b: number } {
   return {
-    r: c.r * (1 - amount),
-    g: c.g * (1 - amount),
-    b: c.b * (1 - amount),
+    r: c.r * (1 - blackRatio) + 12 * blackRatio,
+    g: c.g * (1 - blackRatio) + 12 * blackRatio,
+    b: c.b * (1 - blackRatio) + 18 * blackRatio,
   }
 }
 
