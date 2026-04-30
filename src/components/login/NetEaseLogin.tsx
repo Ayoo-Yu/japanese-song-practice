@@ -31,7 +31,7 @@ export function NetEaseLogin({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-2xl p-6 max-w-md w-full shadow-2xl">
+      <div className="bg-surface rounded-lg p-6 max-w-md w-full shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-text">网易云音乐登录</h3>
           <button

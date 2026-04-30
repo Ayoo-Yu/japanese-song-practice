@@ -23,34 +23,39 @@ export function QuizCorrection({ correctAnswer, quizType, onSave, onSkip }: Quiz
   }
 
   return (
-    <div className="mt-3 p-3 rounded-xl bg-warning/10 border border-warning/20 space-y-2">
+    <div className="mt-3 space-y-3 rounded-lg border border-warning/25 bg-warning/10 p-4">
+      <p className="text-sm font-semibold text-text">
+        这一句再练一次
+      </p>
       <p className="text-sm text-text-secondary">
-        正确答案: <span className="font-medium text-text">{correctAnswer}</span>
+        参考答案：<span className="font-semibold text-text">{correctAnswer}</span>
       </p>
-      <p className="text-xs text-text-muted">
+      <p className="text-xs leading-5 text-text-muted">
         {quizType === 'romaji' || quizType === 'pronunciation'
-          ? '如果罗马音有误，修正后会同步到歌曲数据'
-          : '如果假名注音有误，修正后会同步到歌曲数据'}
+          ? '如果资料里的罗马音不准，可以顺手校正；不确定就直接继续。'
+          : quizType === 'translation'
+            ? '如果翻译不顺，可以改成你更好记的说法。'
+            : '如果假名注音不准，可以顺手校正；不确定就直接继续。'}
       </p>
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <input
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="flex-1 px-3 py-2 rounded-lg bg-surface border border-border text-sm outline-none focus:border-accent/50"
+          className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent/50"
         />
         <button
           onClick={handleSave}
           disabled={isSaving || !value.trim()}
-          className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium disabled:opacity-50 active:scale-[0.98] transition-transform"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
         >
-          {isSaving ? '...' : '修正'}
+          {isSaving ? '...' : '校正'}
         </button>
         <button
           onClick={onSkip}
-          className="px-4 py-2 rounded-lg bg-surface-alt text-text-secondary text-sm font-medium active:scale-[0.98] transition-transform"
+          className="rounded-lg bg-surface-alt px-4 py-2 text-sm font-semibold text-text-secondary transition-transform active:scale-[0.98]"
         >
-          跳过
+          继续
         </button>
       </div>
     </div>

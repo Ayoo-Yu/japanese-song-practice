@@ -9,6 +9,7 @@ export function GlobalAudio() {
   const playbackRate = usePlayerStore((s) => s.playbackRate)
   const pendingSeekMs = usePlayerStore((s) => s.pendingSeekMs)
   const playRangeEnd = usePlayerStore((s) => s.playRangeEnd)
+  const loopRange = usePlayerStore((s) => s.loopRange)
   const currentTimeMs = usePlayerStore((s) => s.currentTimeMs)
   const setCurrentTime = usePlayerStore((s) => s.setCurrentTime)
   const setDuration = usePlayerStore((s) => s.setDuration)
@@ -25,33 +26,49 @@ export function GlobalAudio() {
     }
   }, [setDuration])
 
-  // Tick loop for time + vocal energy — runs once, reads src from DOM
-  useEffect(() => {
-    let timerId: ReturnType<typeof setTimeout>
-    const tick = () => {
-      const audio = audioRef.current
-      if (audio) {
-        setCurrentTime(audio.currentTime * 1000)
-      }
-      timerId = setTimeout(tick, 8)
-    }
-    timerId = setTimeout(tick, 8)
-    return () => clearTimeout(timerId)
+  const syncCurrentTime = useCallback(() => {
+    const audio = audioRef.current
+    if (audio) setCurrentTime(audio.currentTime * 1000)
   }, [setCurrentTime])
+
+  // Keep KTV lyrics responsive while avoiding a permanent 8ms global-store loop.
+  useEffect(() => {
+    if (!isPlaying) return
+
+    let frameId = 0
+    let lastSyncedAt = 0
+    const tick = (timestamp: number) => {
+      if (timestamp - lastSyncedAt >= 33) {
+        syncCurrentTime()
+        lastSyncedAt = timestamp
+      }
+      frameId = requestAnimationFrame(tick)
+    }
+    frameId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frameId)
+  }, [isPlaying, syncCurrentTime])
 
   // Audio events
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
+    const handleEnded = () => setPlaying(false)
+    const handleError = () => setPlaying(false)
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
     audio.addEventListener('durationchange', onLoadedMetadata)
-    audio.addEventListener('ended', () => setPlaying(false))
-    audio.addEventListener('error', () => setPlaying(false))
+    audio.addEventListener('timeupdate', syncCurrentTime)
+    audio.addEventListener('seeked', syncCurrentTime)
+    audio.addEventListener('ended', handleEnded)
+    audio.addEventListener('error', handleError)
     return () => {
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
       audio.removeEventListener('durationchange', onLoadedMetadata)
+      audio.removeEventListener('timeupdate', syncCurrentTime)
+      audio.removeEventListener('seeked', syncCurrentTime)
+      audio.removeEventListener('ended', handleEnded)
+      audio.removeEventListener('error', handleError)
     }
-  }, [onLoadedMetadata, setPlaying])
+  }, [onLoadedMetadata, setPlaying, syncCurrentTime])
 
   // Play/pause
   useEffect(() => {
@@ -86,12 +103,22 @@ export function GlobalAudio() {
 
   // Auto-stop at range end
   useEffect(() => {
-    if (playRangeEnd === null || !isPlaying) return
+    if (loopRange || playRangeEnd === null || !isPlaying) return
     if (currentTimeMs >= playRangeEnd) {
       setPlaying(false)
       setPlayRangeEnd(null)
     }
-  }, [currentTimeMs, playRangeEnd, isPlaying, setPlaying, setPlayRangeEnd])
+  }, [currentTimeMs, loopRange, playRangeEnd, isPlaying, setPlaying, setPlayRangeEnd])
+
+  // Loop a short lyric range for deliberate line practice.
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || !loopRange || !isPlaying) return
+    if (currentTimeMs >= loopRange.endMs) {
+      audio.currentTime = loopRange.startMs / 1000
+      setCurrentTime(loopRange.startMs)
+    }
+  }, [currentTimeMs, loopRange, isPlaying, setCurrentTime])
 
   return <audio ref={audioRef} src={audioSrc} crossOrigin="anonymous" preload="auto" />
 }

@@ -11,6 +11,7 @@ import type { NeteaseSearchResult } from '../types'
 export function SearchPage() {
   const cache = useSearchCache()
   const [results, setResults] = useState<NeteaseSearchResult[]>(cache.results)
+  const [lastQuery, setLastQuery] = useState(cache.query)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [addingId, setAddingId] = useState<number | null>(null)
@@ -27,6 +28,7 @@ export function SearchPage() {
   const handleSearch = async (query: string) => {
     setIsLoading(true)
     setError(null)
+    setLastQuery(query)
     try {
       const songs = await searchSongs(query)
       setResults(songs)
@@ -46,6 +48,11 @@ export function SearchPage() {
   const handlePreview = (song: NeteaseSearchResult) => {
     cache.setCache(cache.query, results, addedIds)
     navigate(`/song/${song.id}?preview=1`)
+  }
+
+  const handleStart = (song: NeteaseSearchResult) => {
+    cache.setCache(cache.query, results, addedIds)
+    navigate(`/song/${song.id}`)
   }
 
   const handleAdd = async (song: NeteaseSearchResult) => {
@@ -75,26 +82,59 @@ export function SearchPage() {
   }
 
   return (
-    <div className="page-shell p-6">
-      <div className="mb-6 rounded-2xl bg-surface/70 backdrop-blur-sm px-5 py-4 shadow-sm border border-border/40">
-        <h2 className="text-2xl font-bold text-text">搜索歌曲</h2>
-      </div>
+    <div className="page-shell px-4 py-6">
+      <section className="learning-panel mb-5 px-5 py-5">
+        <p className="mb-1 text-xs font-semibold uppercase text-accent">Find a song</p>
+        <h2 className="text-2xl font-bold text-text">找一首想唱的日语歌</h2>
+        <p className="mt-2 text-sm leading-6 text-text-secondary">
+          推荐从熟悉旋律开始，先跟着读音唱一句，再慢慢关掉辅助。
+        </p>
+      </section>
       <SearchBar onSearch={handleSearch} isLoading={isLoading} defaultValue={cache.query} />
-
-      {error && <p className="mt-4 text-danger text-sm">{error}</p>}
-
-      <div className="mt-6 flex flex-col gap-3">
-        {results.map((song) => (
-          <SearchResultCard
-            key={song.id}
-            song={song}
-            onPreview={handlePreview}
-            onAdd={handleAdd}
-            isAdding={addingId === song.id}
-            added={addedIds.has(song.id)}
-          />
+      <div className="mt-3 flex flex-wrap gap-2">
+        {['YOASOBI', 'Aimer', '米津玄師', 'アニメ'].map((keyword) => (
+          <button
+            key={keyword}
+            type="button"
+            onClick={() => handleSearch(keyword)}
+            disabled={isLoading}
+            className="rounded-full bg-surface/86 px-3 py-1.5 text-xs font-semibold text-text-secondary ring-1 ring-border transition-colors hover:text-accent disabled:opacity-50"
+          >
+            {keyword}
+          </button>
         ))}
       </div>
+
+      {error && <p className="mt-4 rounded-lg bg-danger/10 px-3 py-2 text-sm font-medium text-danger">{error}</p>}
+
+      {results.length === 0 && !error ? (
+        <div className="learning-panel mt-5 px-5 py-10 text-center">
+          <p className="font-semibold text-text">输入歌名或歌手</p>
+          <p className="mt-2 text-sm text-text-secondary">比如动画歌、J-Pop 歌手，或你最近想学的一首歌。</p>
+        </div>
+      ) : (
+        <>
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-text">
+              {lastQuery ? `“${lastQuery}”的结果` : '搜索结果'}
+            </p>
+            <p className="text-xs text-text-secondary">{results.length} 首</p>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {results.map((song) => (
+              <SearchResultCard
+                key={song.id}
+                song={song}
+                onPreview={handlePreview}
+                onAdd={handleAdd}
+                onStart={handleStart}
+                isAdding={addingId === song.id}
+                added={addedIds.has(song.id)}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

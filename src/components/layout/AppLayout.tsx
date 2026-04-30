@@ -30,7 +30,7 @@ export function AppLayout() {
       {showBack && (
         <button
           onClick={() => navigate(-1)}
-          className="fixed top-4 left-4 z-50 w-10 h-10 rounded-full bg-surface/80 backdrop-blur-sm shadow-md flex items-center justify-center text-text-secondary hover:text-text hover:bg-surface active:scale-90 transition-all duration-200"
+          className="fixed left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg border border-border/70 bg-surface/88 text-text-secondary shadow-sm backdrop-blur-md transition-all duration-200 hover:text-text hover:bg-surface active:scale-95"
           aria-label="返回"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -38,7 +38,7 @@ export function AppLayout() {
           </svg>
         </button>
       )}
-      <main className="relative z-10 flex-1 pb-20">
+      <main className={`relative z-10 flex-1 pb-24 ${showBack ? 'pt-12' : ''}`}>
         <Outlet />
       </main>
       <MiniPlayer />

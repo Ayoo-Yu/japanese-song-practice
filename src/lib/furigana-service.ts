@@ -304,7 +304,7 @@ function shouldAttachToPrevious(piece: string): boolean {
 }
 
 function shouldAttachNextToPrevious(result: string): boolean {
-  return /[(\[{/-]$/.test(result)
+  return /[([{/-]$/.test(result)
 }
 
 function containsJapanese(text: string): boolean {

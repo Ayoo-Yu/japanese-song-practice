@@ -15,18 +15,18 @@ export function SearchBar({ onSearch, isLoading, defaultValue }: SearchBarProps)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2">
+    <form onSubmit={handleSubmit} className="learning-panel flex flex-col gap-2 p-2 sm:flex-row">
       <input
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索日语歌名或歌手..."
-        className="flex-1 px-4 py-3 rounded-xl bg-surface-alt border border-border text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30"
+        placeholder="歌名、歌手、动画名..."
+        className="min-w-0 flex-1 rounded-lg border border-border bg-surface-alt px-4 py-3 text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/20"
       />
       <button
         type="submit"
         disabled={isLoading || !query.trim()}
-        className="px-6 py-3 rounded-xl bg-accent text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent-light transition-colors"
+        className="rounded-lg bg-accent px-5 py-3 font-semibold text-white transition-colors hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
         {isLoading ? '...' : '搜索'}
       </button>

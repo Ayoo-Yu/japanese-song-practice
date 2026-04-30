@@ -15,6 +15,7 @@ interface PlayerState {
   vocalEnergy: number
   pendingSeekMs: number | null
   playRangeEnd: number | null
+  loopRange: { startMs: number; endMs: number } | null
   playbackRate: number
   nowPlaying: NowPlaying | null
   audioSrc: string | undefined
@@ -25,6 +26,7 @@ interface PlayerState {
   setVocalEnergy: (energy: number) => void
   setPendingSeek: (ms: number | null) => void
   setPlayRangeEnd: (ms: number | null) => void
+  setLoopRange: (range: { startMs: number; endMs: number } | null) => void
   setPlaybackRate: (rate: number) => void
   setNowPlaying: (info: NowPlaying | null) => void
   setAudioSrc: (src: string | undefined) => void
@@ -38,6 +40,7 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   vocalEnergy: 0,
   pendingSeekMs: null,
   playRangeEnd: null,
+  loopRange: null,
   playbackRate: 1,
   nowPlaying: null,
   audioSrc: undefined,
@@ -49,6 +52,7 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   setVocalEnergy: (energy) => set({ vocalEnergy: energy }),
   setPendingSeek: (ms) => set({ pendingSeekMs: ms }),
   setPlayRangeEnd: (ms) => set({ playRangeEnd: ms }),
+  setLoopRange: (range) => set({ loopRange: range }),
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
   setNowPlaying: (info) => set({ nowPlaying: info }),
   setAudioSrc: (src) => set({ audioSrc: src }),

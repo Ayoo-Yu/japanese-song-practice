@@ -1,6 +1,66 @@
 import { useState, useEffect } from 'react'
 import { NetEaseLogin } from '../components/login/NetEaseLogin'
 import { useUIStore } from '../stores/ui-store'
+import type { AppearanceSettings } from '../stores/ui-store'
+
+const appearancePresets: Array<{
+  name: string
+  description: string
+  swatches: string[]
+  patch: Partial<AppearanceSettings>
+}> = [
+  {
+    name: '清爽',
+    description: '白天练习，背景轻一点',
+    swatches: ['#ffffff', '#247c7a', '#f27a62'],
+    patch: {
+      overlayOpacity: 0.48,
+      blurPx: 0.4,
+      saturation: 0.95,
+      brightness: 1.06,
+      lyricsPanelColor: '#102421',
+      lyricsPanelOpacity: 0.78,
+      lyricsLineOpacity: 0.1,
+      lyricsTextColor: '#ffffff',
+      lyricsAccentColor: '#78f0df',
+      lyricsSubtextColor: '#dcefea',
+    },
+  },
+  {
+    name: '沉浸',
+    description: '跟唱时更像歌词屏',
+    swatches: ['#102421', '#78f0df', '#f7b267'],
+    patch: {
+      overlayOpacity: 0.36,
+      blurPx: 1.4,
+      saturation: 1.18,
+      brightness: 0.9,
+      lyricsPanelColor: '#071816',
+      lyricsPanelOpacity: 0.88,
+      lyricsLineOpacity: 0.16,
+      lyricsTextColor: '#f7fffd',
+      lyricsAccentColor: '#78f0df',
+      lyricsSubtextColor: '#c6ddd8',
+    },
+  },
+  {
+    name: '夜练',
+    description: '低亮度，适合晚上小声唱',
+    swatches: ['#0f172a', '#9bd4ff', '#f2a65a'],
+    patch: {
+      overlayOpacity: 0.58,
+      blurPx: 1.8,
+      saturation: 0.82,
+      brightness: 0.78,
+      lyricsPanelColor: '#0f172a',
+      lyricsPanelOpacity: 0.9,
+      lyricsLineOpacity: 0.14,
+      lyricsTextColor: '#f8fbff',
+      lyricsAccentColor: '#9bd4ff',
+      lyricsSubtextColor: '#d5e2f0',
+    },
+  },
+]
 
 export function SettingsPage() {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
@@ -17,12 +77,14 @@ export function SettingsPage() {
   }, [])
 
   return (
-    <div className="page-shell p-6">
-      <div className="mb-6 rounded-2xl bg-surface/70 backdrop-blur-sm px-5 py-4 shadow-sm border border-border/40">
+    <div className="page-shell px-4 py-6">
+      <div className="learning-panel mb-5 px-5 py-5">
+        <p className="mb-1 text-xs font-semibold uppercase text-accent">Preferences</p>
         <h2 className="text-2xl font-bold text-text">设置</h2>
+        <p className="mt-2 text-sm leading-6 text-text-secondary">登录音乐账号，调整背景和歌词区外观。</p>
       </div>
 
-      <div className="border border-border rounded-xl bg-surface/72 backdrop-blur-sm p-4 mb-4">
+      <div className="learning-card mb-4 p-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-text">网易云音乐</h3>
@@ -36,7 +98,7 @@ export function SettingsPage() {
           </div>
           <button
             onClick={() => setShowLogin(true)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium ${
               loggedIn
                 ? 'border border-border text-text-secondary hover:border-accent'
                 : 'bg-accent text-white hover:opacity-90'
@@ -47,7 +109,7 @@ export function SettingsPage() {
         </div>
       </div>
 
-      <div className="border border-border rounded-xl bg-surface/72 backdrop-blur-sm p-4 mb-4 space-y-4">
+      <div className="learning-card mb-4 space-y-4 p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="font-semibold text-text">背景外观</h3>
@@ -57,10 +119,39 @@ export function SettingsPage() {
           </div>
           <button
             onClick={resetAppearance}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium border border-border text-text-secondary hover:border-accent"
+            className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border border-border text-text-secondary hover:border-accent"
           >
             恢复默认
           </button>
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-text">一键预设</span>
+            <span className="text-xs text-text-muted">可再微调</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {appearancePresets.map((preset) => (
+              <button
+                key={preset.name}
+                type="button"
+                onClick={() => setAppearance(preset.patch)}
+                className="rounded-lg border border-border bg-surface/82 px-3 py-3 text-left transition-colors hover:border-accent"
+              >
+                <div className="mb-3 flex gap-1.5">
+                  {preset.swatches.map((color) => (
+                    <span
+                      key={color}
+                      className="h-4 w-4 rounded-full ring-1 ring-black/10"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+                <p className="font-semibold text-text">{preset.name}</p>
+                <p className="mt-1 text-xs leading-5 text-text-secondary">{preset.description}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         <label className="block">
@@ -203,14 +294,14 @@ function ColorField({
   return (
     <label className="block">
       <span className="block text-sm font-medium text-text mb-2">{label}</span>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/78 p-2">
         <input
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="h-10 w-14 rounded border border-border bg-transparent p-1"
+          className="h-9 w-11 shrink-0 rounded border border-border bg-transparent p-1"
         />
-        <span className="text-sm text-text-secondary font-mono">{value}</span>
+        <span className="min-w-0 truncate text-xs font-mono text-text-secondary">{value}</span>
       </div>
     </label>
   )
@@ -237,7 +328,9 @@ function RangeField({
     <label className="block">
       <div className="flex items-center justify-between gap-3 mb-2">
         <span className="text-sm font-medium text-text">{label}</span>
-        <span className="text-sm text-text-secondary tabular-nums">{displayValue}</span>
+        <span className="rounded-full bg-surface-alt px-2 py-0.5 text-xs font-semibold text-text-secondary tabular-nums">
+          {displayValue}
+        </span>
       </div>
       <input
         type="range"

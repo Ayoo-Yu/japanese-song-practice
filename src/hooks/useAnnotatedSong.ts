@@ -11,12 +11,16 @@ export function useAnnotatedSong(neteaseId: number | null, preview = false) {
     if (!neteaseId) return
 
     let cancelled = false
-    setIsLoading(true)
-    setError(null)
 
-    getAnnotatedSong(neteaseId, preview)
+    Promise.resolve()
+      .then(() => {
+        if (cancelled) return null
+        setIsLoading(true)
+        setError(null)
+        return getAnnotatedSong(neteaseId, preview)
+      })
       .then((result) => {
-        if (!cancelled) setSong(result)
+        if (!cancelled && result) setSong(result)
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load song')
