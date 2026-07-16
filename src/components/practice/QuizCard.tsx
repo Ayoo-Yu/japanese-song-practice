@@ -33,6 +33,7 @@ export function QuizCard({ question, selectedAnswer, showResult, onAnswer, onSpe
           </p>
           {question.type === 'pronunciation' && onSpeak && (
             <button
+              type="button"
               onClick={() => onSpeak(question.japaneseText)}
               className="px-3 py-1 rounded-full text-xs font-medium bg-accent/15 text-accent border border-accent/25 hover:bg-accent/25 transition-colors"
             >
@@ -59,6 +60,7 @@ export function QuizCard({ question, selectedAnswer, showResult, onAnswer, onSpe
           return (
             <button
               key={i}
+              type="button"
               onClick={() => !showResult && onAnswer(i)}
               disabled={showResult}
               className={cls}

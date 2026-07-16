@@ -15,10 +15,12 @@ const stages: { value: PracticeStage; label: string }[] = [
 
 export function StageSelector({ currentStage, onStageChange }: StageSelectorProps) {
   return (
-    <div className="flex gap-2 overflow-x-auto">
+    <div className="flex gap-2 overflow-x-auto pb-1" aria-label="歌词学习阶段">
       {stages.map((stage) => (
         <button
           key={stage.value}
+          type="button"
+          aria-pressed={currentStage === stage.value}
           onClick={() => onStageChange(stage.value)}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
             currentStage === stage.value

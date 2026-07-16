@@ -27,7 +27,7 @@ export function PracticeSelectPage() {
         <p className="text-text-secondary text-sm">选择歌曲开始练习读音</p>
       </div>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
         <TypePill
           active={quizType === 'romaji'}
           onClick={() => setSearchParams({ type: 'romaji' })}
@@ -100,6 +100,8 @@ export function PracticeSelectPage() {
 function TypePill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
+      type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
         active

@@ -38,7 +38,7 @@ export function AppLayout() {
           </svg>
         </button>
       )}
-      <main className="relative z-10 flex-1 pb-20">
+      <main className={`relative z-10 flex-1 pb-20 ${showBack ? 'pt-14' : ''}`}>
         <Outlet />
       </main>
       <MiniPlayer />

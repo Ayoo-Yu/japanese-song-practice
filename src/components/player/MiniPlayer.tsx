@@ -15,33 +15,33 @@ export function MiniPlayer() {
   return (
     <div className="fixed bottom-16 inset-x-0 z-40">
       <div className="page-shell">
-        <Link
-          to={`/song/${nowPlaying.neteaseId}`}
-          className="flex items-center gap-3 mx-1 px-3 py-2 rounded-t-xl bg-surface/90 backdrop-blur-md border border-border/50 border-b-0 shadow-lg"
-        >
-          {nowPlaying.albumArtUrl ? (
-            <img
-              src={nowPlaying.albumArtUrl}
-              alt={nowPlaying.title}
-              width={36}
-              height={36}
-              className="rounded-lg object-cover shrink-0 shadow-sm"
-            />
-          ) : (
-            <div className="w-9 h-9 rounded-lg bg-surface-muted flex items-center justify-center text-sm shrink-0">
-              🎵
+        <div className="flex items-center gap-3 mx-1 px-3 py-2 rounded-t-xl bg-surface/90 backdrop-blur-md border border-border/50 border-b-0 shadow-lg">
+          <Link
+            to={`/song/${nowPlaying.neteaseId}`}
+            className="flex min-w-0 flex-1 items-center gap-3"
+          >
+            {nowPlaying.albumArtUrl ? (
+              <img
+                src={nowPlaying.albumArtUrl}
+                alt={nowPlaying.title}
+                width={36}
+                height={36}
+                className="rounded-lg object-cover shrink-0 shadow-sm"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-lg bg-surface-muted flex items-center justify-center text-sm shrink-0">
+                🎵
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-text truncate">{nowPlaying.title}</p>
+              <p className="text-xs text-text-secondary truncate">{nowPlaying.artist}</p>
             </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-text truncate">{nowPlaying.title}</p>
-            <p className="text-xs text-text-secondary truncate">{nowPlaying.artist}</p>
-          </div>
+          </Link>
           <button
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              setPlaying(!isPlaying)
-            }}
+            type="button"
+            aria-label={isPlaying ? '暂停当前歌曲' : '播放当前歌曲'}
+            onClick={() => setPlaying(!isPlaying)}
             className="w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center shrink-0 active:scale-90 transition-transform"
           >
             {isPlaying ? (
@@ -55,7 +55,7 @@ export function MiniPlayer() {
               </svg>
             )}
           </button>
-        </Link>
+        </div>
         <div className="mx-1 h-[2px] bg-border/30 rounded-full overflow-hidden -mt-px">
           <div
             className="h-full bg-accent/60 transition-all duration-300"

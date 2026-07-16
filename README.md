@@ -10,6 +10,9 @@
 - **时间校准** — 微调歌词时间轴，让渐变精准对齐
 - **歌词编辑** — 修改罗马音、翻译、假名注音
 - **歌词练习** — 选择题测试罗马音/假名注音/翻译，答错可纠正
+- **学习进度** — 按歌曲保存当前阶段，记录正确率，并用间隔复习更新单词掌握度
+- **可信度保护** — 中低置信度注音会提示核对，未确认前不会进入测验
+- **本地备份** — 在设置中导出/恢复曲库、生词、收藏句、学习进度和外观设置
 
 ## 快速开始
 
@@ -43,9 +46,14 @@ pnpm dev
 | 变量 | 说明 | 必填 |
 |------|------|------|
 | `NETEASE_MUSIC_U` | 网易云音乐 Cookie（VIP 歌曲） | ❌ |
+| `HOST` | 服务监听地址；云端部署设为 `0.0.0.0` | ❌ |
+| `PORT` | 服务监听端口；托管平台通常会自动注入 | ❌ |
+| `ALLOW_CREDENTIAL_WRITES` | 是否允许网页修改网易云凭据；公开部署请保持关闭 | ❌ |
 
-首次启动开发服务器时，终端会自动显示二维码，用网易云音乐 APP 扫码即可自动登录。
-也可以手动获取 Cookie：浏览器 DevTools > Application > Cookies > music.163.com > MUSIC_U
+可直接在 `.env` 中配置，也可以在应用的「设置 → 网易云音乐」中填写 `MUSIC_U`。
+获取方式：浏览器 DevTools → Application → Cookies → music.163.com → MUSIC_U。
+
+设置页显示“已配置”只代表凭据已经保存；账号权限和音源可用性会在实际播放时由网易云验证。
 
 ## 技术栈
 
@@ -53,7 +61,7 @@ pnpm dev
 - Tailwind CSS 4
 - Zustand 5（状态管理）
 - React Router 7（路由）
-- kuroshiro + kuromoji（汉字 → 假名注音）
+- kuromoji + wanakana（分词、汉字读音与罗马音）
 - 网易云音乐 API（Vite 代理直连）
 
 ## 常用命令
@@ -61,9 +69,19 @@ pnpm dev
 ```bash
 pnpm dev          # 启动开发服务器
 pnpm build        # 生产构建
+pnpm test         # Vitest 回归测试
 pnpm lint         # ESLint 检查
-npx tsc --noEmit  # 类型检查
+pnpm exec tsc -b  # TypeScript 类型检查
+pnpm preview      # 本地预览生产构建（包含 API 中间件）
 ```
+
+## 数据与部署
+
+歌曲、收藏、学习进度和外观设置默认保存在浏览器 `localStorage`。更换浏览器、清理站点数据或迁移设备前，请先在设置页导出 JSON 备份。
+
+`pnpm preview` 会运行项目所需的网易云、音频、TTS 和登录中间件。若只把 `dist/` 上传到纯静态托管，页面能打开，但这些服务端 API 不会存在；正式部署时需要保留 Node/Vite 服务，或把对应 `/api/*` 路由迁移到自己的后端。
+
+仓库内置了 Railway 配置和 Dockerfile。公开部署时，网易云凭据默认只能通过托管平台的 `NETEASE_MUSIC_U` 环境变量配置，网页不会允许访客覆盖它。部署健康检查地址为 `/api/health`。
 
 ## 项目结构
 

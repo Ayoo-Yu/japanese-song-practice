@@ -51,7 +51,11 @@ export interface FuriganaToken {
   reading: string
   isKanji: boolean
   confidence?: 'high' | 'medium' | 'low'
-  source?: 'tokenizer' | 'romaji_strict' | 'romaji_fallback' | 'user_confirmed'
+  source?: 'tokenizer' | 'romaji_strict' | 'romaji_fallback' | 'reading_override' | 'user_confirmed'
+  /** Internal tokenizer group used to keep display romaji at word boundaries. */
+  romajiGroup?: number
+  /** Whether this tokenizer group is a grammatical suffix of the previous group. */
+  romajiJoinPrevious?: boolean
 }
 
 export interface RomajiLine {

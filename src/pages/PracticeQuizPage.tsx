@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { getAnnotatedSong } from '../services/lyrics-service'
 import { buildQuizSession } from '../services/quiz-service'
+import { getSongLearningProgress, getSuggestedStage, recordQuizAnswer } from '../services/learning-service'
 import { updateLyrics, updateFuriganaToken } from '../services/song-service'
 import { QuizCard } from '../components/practice/QuizCard'
 import { QuizProgress } from '../components/practice/QuizProgress'
@@ -33,16 +34,50 @@ export function PracticeQuizPage() {
   const [showResult, setShowResult] = useState(false)
   const [isFinished, setIsFinished] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const speak = useQuizSpeech()
 
   useEffect(() => {
     if (!neteaseId || Number.isNaN(neteaseId)) return
-    getAnnotatedSong(neteaseId).then((s) => {
-      setSong(s)
-      setSession(buildQuizSession(s, quizType))
-      setIsLoading(false)
+    let cancelled = false
+    Promise.resolve().then(() => {
+      if (!cancelled) {
+        setIsLoading(true)
+        setLoadError(null)
+      }
     })
+    getAnnotatedSong(neteaseId)
+      .then((s) => {
+        if (cancelled) return
+        setSong(s)
+        setSession(buildQuizSession(s, quizType))
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : '练习加载失败')
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [neteaseId, quizType])
+
+  useEffect(() => () => {
+    if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current)
+  }, [])
+
+  if (loadError) {
+    return (
+      <div className="page-shell p-6 text-center py-16">
+        <p className="text-danger mb-4">{loadError}</p>
+        <Link to="/practice" className="inline-block px-6 py-2.5 bg-accent text-white rounded-xl font-medium">
+          返回选择
+        </Link>
+      </div>
+    )
+  }
 
   if (isLoading || !song || !session) {
     return (
@@ -70,6 +105,8 @@ export function PracticeQuizPage() {
   if (isFinished) {
     const total = session.questions.length
     const pct = Math.round((session.correctCount / total) * 100)
+    const progress = getSongLearningProgress(song.neteaseId)
+    const suggestedStage = getSuggestedStage(progress)
     return (
       <div className="page-shell p-6 text-center py-12">
         <div className="mb-6 rounded-2xl bg-surface/70 backdrop-blur-sm px-5 py-4 shadow-sm border border-border/40">
@@ -79,6 +116,11 @@ export function PracticeQuizPage() {
         <p className="text-text-secondary mb-8">
           {session.correctCount} / {total} 正确
         </p>
+        {suggestedStage !== progress.currentStage && (
+          <p className="mb-6 text-sm text-accent">
+            根据累计正确率，建议下一次尝试第 {suggestedStage} 阶段。
+          </p>
+        )}
         <div className="flex gap-3 justify-center">
           <Link
             to="/practice"
@@ -103,10 +145,12 @@ export function PracticeQuizPage() {
   }
 
   const handleAnswer = (index: number) => {
+    if (showResult) return
     setSelectedAnswer(index)
     setShowResult(true)
 
     const isCorrect = index === question.correctIndex
+    recordQuizAnswer(song.neteaseId, question, isCorrect)
     setSession((prev) =>
       prev
         ? {
@@ -118,11 +162,15 @@ export function PracticeQuizPage() {
     )
 
     if (isCorrect) {
-      setTimeout(() => advance(), 800)
+      advanceTimerRef.current = setTimeout(() => advance(), 800)
     }
   }
 
   const advance = () => {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current)
+      advanceTimerRef.current = null
+    }
     setSession((prev) => {
       if (!prev) return prev
       const next = prev.currentIndex + 1

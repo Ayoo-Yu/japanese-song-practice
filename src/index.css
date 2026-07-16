@@ -25,7 +25,7 @@ html {
 }
 
 body {
-  min-width: 360px;
+  min-width: 320px;
 }
 
 @media (min-width: 768px) {
@@ -69,8 +69,8 @@ ruby rt {
   letter-spacing: 0.04em;
   color: var(--lyrics-primary-color, #ffffff);
   text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
   transition: color 0.26s ease-out, transform 0.32s ease-out;
 }
 
@@ -96,7 +96,7 @@ ruby rt {
 .lyrics-line.active {
   color: var(--lyrics-accent-color, var(--color-accent));
   font-size: 1.72rem;
-  transform: scale(1.025);
+  transform: none;
 }
 
 .lyrics-line.played {
@@ -131,6 +131,7 @@ ruby rt {
   letter-spacing: 0.04em;
   line-height: 1.5;
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .lyrics-line .translation {
@@ -139,6 +140,7 @@ ruby rt {
   opacity: 0.96;
   margin-top: 0.2rem;
   line-height: 1.52;
+  overflow-wrap: anywhere;
 }
 
 .audio-player input[type='range'] {
@@ -177,4 +179,32 @@ ruby rt {
 .ktv-highlight,
 .ktv-highlight * {
   color: var(--ktv-highlight-color, var(--color-accent)) !important;
+}
+
+.ktv-highlight {
+  transition: clip-path 260ms linear;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-accent) 60%, white);
+  outline-offset: 2px;
+}
+
+@media (min-width: 640px) {
+  .lyrics-line.active {
+    transform: scale(1.025);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

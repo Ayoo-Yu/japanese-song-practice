@@ -1,12 +1,14 @@
 import type { Song, FuriganaLine, FuriganaToken } from '../types'
 import { computeFuriganaForLine, FURIGANA_VERSION } from '../lib/furigana-service'
 import { buildStageLyrics } from './lyrics-service'
+import { removeCollectionsForSong } from './collections-service'
+import { removeSongLearningData } from './learning-service'
 
-const STORAGE_KEY = 'jpsong_songs'
+export const SONGS_STORAGE_KEY = 'jpsong_songs'
 
 function loadAll(): Song[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(SONGS_STORAGE_KEY)
     return raw ? JSON.parse(raw) : []
   } catch {
     return []
@@ -14,7 +16,11 @@ function loadAll(): Song[] {
 }
 
 function saveAll(songs: Song[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(songs))
+  try {
+    localStorage.setItem(SONGS_STORAGE_KEY, JSON.stringify(songs))
+  } catch {
+    throw new Error('本地存储空间不足，歌曲未能保存。请先在设置中导出备份并清理不需要的数据。')
+  }
 }
 
 function generateId(): string {
@@ -75,8 +81,14 @@ export async function listUserSongs(): Promise<Song[]> {
 }
 
 export async function deleteSong(id: string): Promise<void> {
-  const songs = loadAll().filter((s) => s.id !== id)
+  const currentSongs = loadAll()
+  const removed = currentSongs.find((song) => song.id === id)
+  const songs = currentSongs.filter((s) => s.id !== id)
   saveAll(songs)
+  if (removed) {
+    removeCollectionsForSong(removed.neteaseId)
+    removeSongLearningData(removed.neteaseId)
+  }
 }
 
 export async function updateLyrics(

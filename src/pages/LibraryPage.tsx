@@ -1,26 +1,37 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { listUserSongs, deleteSong } from '../services/song-service'
 import { listSavedLines, listSavedWords, removeSavedLine, removeSavedWord } from '../services/collections-service'
+import { listSongLearningProgress } from '../services/learning-service'
+import type { SongLearningProgress } from '../services/learning-service'
 import type { Song, SavedLine, SavedWord } from '../types'
 
 export function LibraryPage() {
   const [songs, setSongs] = useState<Song[]>([])
   const [savedWords, setSavedWords] = useState<SavedWord[]>([])
   const [savedLines, setSavedLines] = useState<SavedLine[]>([])
+  const [learningProgress, setLearningProgress] = useState<Map<number, SongLearningProgress>>(new Map())
   const [managing, setManaging] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [tab, setTab] = useState<'songs' | 'words' | 'lines'>('songs')
   const [wordQuery, setWordQuery] = useState('')
   const [lineQuery, setLineQuery] = useState('')
 
-  const reload = () => {
-    listUserSongs().then(setSongs)
-    listSavedWords().then(setSavedWords)
-    listSavedLines().then(setSavedLines)
-  }
+  const reload = useCallback(async () => {
+    const [nextSongs, nextWords, nextLines] = await Promise.all([
+      listUserSongs(),
+      listSavedWords(),
+      listSavedLines(),
+    ])
+    setSongs(nextSongs)
+    setSavedWords(nextWords)
+    setSavedLines(nextLines)
+    setLearningProgress(new Map(listSongLearningProgress().map((item) => [item.neteaseId, item])))
+  }, [])
 
-  useEffect(() => { reload() }, [])
+  useEffect(() => {
+    void Promise.resolve().then(reload)
+  }, [reload])
 
   const handleDelete = async (id: string) => {
     await deleteSong(id)
@@ -88,7 +99,12 @@ export function LibraryPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {songs.map((song) => (
+          {songs.map((song) => {
+            const progress = learningProgress.get(song.neteaseId)
+            const accuracy = progress?.answerCount
+              ? Math.round((progress.correctCount / progress.answerCount) * 100)
+              : null
+            return (
             <div key={song.id} className="relative">
               <Link
                 to={`/song/${song.neteaseId}`}
@@ -112,6 +128,10 @@ export function LibraryPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-text font-medium truncate">{song.title}</p>
                   <p className="text-text-secondary text-sm truncate">{song.artist}</p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    第 {progress?.currentStage ?? 1} 阶段
+                    {accuracy !== null ? ` · 累计正确率 ${accuracy}%` : ' · 尚未练习'}
+                  </p>
                 </div>
               </Link>
 
@@ -143,7 +163,7 @@ export function LibraryPage() {
                 )
               )}
             </div>
-          ))}
+          )})}
         </div>
       )) : tab === 'words' ? (
         savedWords.length === 0 ? (
@@ -251,6 +271,8 @@ export function LibraryPage() {
 function LibraryTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
+      type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
         active ? 'bg-accent/15 text-accent border border-accent/30' : 'bg-surface-alt text-text-secondary'

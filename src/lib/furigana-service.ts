@@ -4,7 +4,20 @@ import { getJapaneseTokenizer } from './japanese-tokenizer'
 import type { JapaneseToken } from './japanese-tokenizer'
 import type { FuriganaToken } from '../types'
 
-export const FURIGANA_VERSION = 7
+export const FURIGANA_VERSION = 10
+
+const PHRASE_READING_OVERRIDES: Array<{
+  surface: string
+  tokens: Array<{ surface: string; reading: string }>
+}> = [
+  {
+    surface: '米津玄師',
+    tokens: [
+      { surface: '米津', reading: 'よねづ' },
+      { surface: '玄師', reading: 'けんし' },
+    ],
+  },
+]
 
 const LYRIC_READING_OVERRIDES: Array<{
   match: (surface: string, token: JapaneseToken) => boolean
@@ -24,59 +37,83 @@ export async function computeFuriganaForLine(original: string, romaji: string): 
   if (!original.trim()) return null
 
   const cleaned = stripInlineKanaAnnotations(original)
-
-  const tokenized = await computeFuriganaWithTokenizer(cleaned)
-  const fromRomaji = computeFuriganaFromRomaji(cleaned, romaji)
-
-  if (fromRomaji?.some((token) => token.isKanji && token.source === 'romaji_strict')) {
-    return fromRomaji
+  try {
+    const tokenizer = await getJapaneseTokenizer()
+    return computeFuriganaFromSources(cleaned, romaji, tokenizer.tokenize(cleaned))
+  } catch {
+    return computeFuriganaFromSources(cleaned, romaji, null)
   }
-
-  if (tokenized?.some((token) => token.isKanji && token.reading)) {
-    return reconcileRomajiConfidence(
-      mergeTokenizerAndRomajiTokens(tokenized, fromRomaji),
-      tokenized,
-      fromRomaji,
-    )
-  }
-
-  return reconcileRomajiConfidence(fromRomaji, tokenized, fromRomaji)
 }
 
 async function computeFuriganaWithTokenizer(original: string): Promise<FuriganaToken[] | null> {
   try {
     const tokenizer = await getJapaneseTokenizer()
-    const tokens = tokenizer.tokenize(original)
+    return computeFuriganaWithTokens(tokenizer.tokenize(original))
+  } catch {
+    return null
+  }
+}
+
+/** Pure entry point used by the browser implementation and regression tests. */
+export function computeFuriganaFromSources(
+  original: string,
+  romaji: string,
+  japaneseTokens: JapaneseToken[] | null,
+): FuriganaToken[] | null {
+  const cleaned = stripInlineKanaAnnotations(original)
+  const tokenized = japaneseTokens ? computeFuriganaWithTokens(japaneseTokens) : null
+  const fromRomaji = computeFuriganaFromRomaji(cleaned, romaji)
+
+  if (tokenized?.some((token) => token.isKanji && token.reading)) {
+    const merged = reconcileRomajiConfidence(
+      mergeTokenizerAndRomajiTokens(tokenized, fromRomaji),
+      tokenized,
+      fromRomaji,
+    )
+    return merged ? applyPhraseReadingOverrides(merged) : merged
+  }
+
+  if (tokenized?.length) return tokenized
+
+  return reconcileRomajiConfidence(fromRomaji, tokenized, fromRomaji)
+}
+
+function computeFuriganaWithTokens(tokens: JapaneseToken[]): FuriganaToken[] {
     const result: FuriganaToken[] = []
 
-    for (const token of tokens) {
+    tokens.forEach((token, groupIndex) => {
       const surface = token.surface_form
-      if (!surface) continue
+      if (!surface) return
 
       const reading = getPreferredReading(token)
+      const override = findTokenReadingOverride(surface, token)
+      const confidence: NonNullable<FuriganaToken['confidence']> = override
+        ? 'high'
+        : token.word_type === 'UNKNOWN' || token.pos_detail_1 === '固有名詞'
+          ? 'medium'
+          : 'high'
+      const source: NonNullable<FuriganaToken['source']> = override ? 'reading_override' : 'tokenizer'
+      const romajiJoinPrevious = shouldJoinTokenizerGroup(token)
 
       if (containsKanji(surface) && reading) {
         const aligned = alignFurigana(surface, reading) ?? alignFuriganaFallback(surface, reading)
         if (aligned.some((item) => item.isKanji && item.reading)) {
           result.push(...aligned.map((item) => item.isKanji
-            ? { ...item, confidence: 'high' as const, source: 'tokenizer' as const }
-            : item))
-          continue
+            ? { ...item, confidence, source, romajiGroup: groupIndex, romajiJoinPrevious }
+            : { ...item, romajiGroup: groupIndex, romajiJoinPrevious }))
+          return
         }
 
         if (isAllKanji(surface)) {
-          result.push({ surface, reading, isKanji: true, confidence: 'high' as const, source: 'tokenizer' as const })
-          continue
+          result.push({ surface, reading, isKanji: true, confidence, source, romajiGroup: groupIndex, romajiJoinPrevious })
+          return
         }
       }
 
-      result.push({ surface, reading: surface, isKanji: false })
-    }
+      result.push({ surface, reading: surface, isKanji: false, romajiGroup: groupIndex, romajiJoinPrevious })
+    })
 
     return mergeAdjacentPlainTokens(result)
-  } catch {
-    return null
-  }
 }
 
 function mergeAdjacentPlainTokens(tokens: FuriganaToken[]): FuriganaToken[] {
@@ -88,7 +125,8 @@ function mergeAdjacentPlainTokens(tokens: FuriganaToken[]): FuriganaToken[] {
       !prev.isKanji &&
       !token.isKanji &&
       prev.reading === prev.surface &&
-      token.reading === token.surface
+      token.reading === token.surface &&
+      prev.romajiGroup === token.romajiGroup
     ) {
       prev.surface += token.surface
       prev.reading += token.reading
@@ -125,9 +163,35 @@ export function tokensToHtml(tokens: FuriganaToken[]): string {
 }
 
 export function tokensToDisplayRomaji(tokens: FuriganaToken[]): string {
-  const pieces = tokens
-    .map((token) => romajiPieceFromFuriganaToken(token))
-    .filter(Boolean)
+  const groups: Array<{ tokens: FuriganaToken[]; joinPrevious: boolean }> = []
+
+  tokens.forEach((token, index) => {
+    const previous = groups[groups.length - 1]
+    const groupKey = token.romajiGroup ?? index
+    const previousKey = previous?.tokens[0]?.romajiGroup
+    if (previous && previousKey !== undefined && previousKey === groupKey) {
+      previous.tokens.push(token)
+      return
+    }
+    groups.push({ tokens: [token], joinPrevious: !!token.romajiJoinPrevious })
+  })
+
+  const joinedGroups: typeof groups = []
+  for (const group of groups) {
+    const previous = joinedGroups[joinedGroups.length - 1]
+    if (group.joinPrevious && previous) {
+      previous.tokens.push(...group.tokens)
+    } else {
+      joinedGroups.push({ ...group, tokens: [...group.tokens] })
+    }
+  }
+
+  const pieces = joinedGroups
+    .map(({ tokens: groupTokens, joinPrevious }) => ({
+      value: romajiPieceFromFuriganaGroup(groupTokens),
+      joinPrevious,
+    }))
+    .filter((piece) => piece.value)
 
   return normalizeDisplayRomaji(pieces)
 }
@@ -149,7 +213,7 @@ export async function computeDisplayRomaji(original: string, romaji: string): Pr
       .filter(Boolean)
 
     if (pieces.length > 0) {
-      return normalizeDisplayRomaji(pieces)
+      return normalizeDisplayRomaji(pieces.map((value) => ({ value, joinPrevious: false })))
     }
   } catch {
     // Fall back to source romaji normalization below.
@@ -181,7 +245,7 @@ export async function computeDictionaryRomaji(original: string): Promise<string>
       }
     }
 
-    const suggestion = normalizeDisplayRomaji(pieces)
+    const suggestion = normalizeDisplayRomaji(pieces.map((value) => ({ value, joinPrevious: false })))
     return looksLikePureRomajiSuggestion(suggestion) ? suggestion : ''
   } catch {
     return ''
@@ -220,16 +284,16 @@ function romajiPieceForToken(token: JapaneseToken): string {
   return wanakanaToRomaji(source)
 }
 
-function romajiPieceFromFuriganaToken(token: FuriganaToken): string {
-  const surface = token.surface
+function romajiPieceFromFuriganaGroup(tokens: FuriganaToken[]): string {
+  const surface = tokens.map((token) => token.surface).join('')
   if (!surface) return ''
 
-  const source = token.reading || surface
+  const source = tokens.map((token) => token.reading || token.surface).join('')
   if (!containsJapanese(source) && !containsJapanese(surface)) {
     return surface
   }
 
-  if (!token.isKanji) {
+  if (!tokens.some((token) => token.isKanji)) {
     if (surface === 'は') return 'wa'
     if (surface === 'へ') return 'e'
     if (surface === 'を') return 'o'
@@ -263,11 +327,11 @@ function dictionaryRomajiPieceForToken(token: JapaneseToken): string | null {
   return null
 }
 
-function normalizeDisplayRomaji(pieces: string[]): string {
+function normalizeDisplayRomaji(pieces: Array<{ value: string; joinPrevious: boolean }>): string {
   let result = ''
 
   for (const piece of pieces) {
-    const trimmed = piece.trim()
+    const trimmed = piece.value.trim()
     if (!trimmed) continue
 
     if (!result) {
@@ -275,7 +339,7 @@ function normalizeDisplayRomaji(pieces: string[]): string {
       continue
     }
 
-    if (shouldAttachToPrevious(trimmed) || shouldAttachNextToPrevious(result)) {
+    if (piece.joinPrevious || shouldAttachToPrevious(trimmed) || shouldAttachNextToPrevious(result)) {
       result += trimmed
       continue
     }
@@ -304,7 +368,7 @@ function shouldAttachToPrevious(piece: string): boolean {
 }
 
 function shouldAttachNextToPrevious(result: string): boolean {
-  return /[(\[{/-]$/.test(result)
+  return /[([{/-]$/.test(result)
 }
 
 function containsJapanese(text: string): boolean {
@@ -383,11 +447,11 @@ function mergeTokenizerAndRomajiTokens(
     const romajiToken = romajiKanji[romajiIndex++]
     if (!romajiToken?.reading || token.reading === romajiToken.reading) continue
 
+    // Source romaji is line-level and may already contain a bad legacy split.
+    // Keep the dictionary reading and only surface the disagreement for review.
     merged[i] = {
       ...token,
-      reading: romajiToken.reading,
-      confidence: romajiToken.confidence,
-      source: romajiToken.source,
+      confidence: token.confidence === 'low' ? 'low' : 'medium',
     }
   }
 
@@ -437,7 +501,7 @@ function getPreferredReading(token: JapaneseToken): string {
   const surface = token.surface_form
   if (!surface) return ''
 
-  const override = LYRIC_READING_OVERRIDES.find((entry) => entry.match(surface, token))
+  const override = findTokenReadingOverride(surface, token)
   if (override) {
     return override.reading(surface)
   }
@@ -445,6 +509,51 @@ function getPreferredReading(token: JapaneseToken): string {
   return token.reading && token.reading !== '*'
     ? wanakanaToHiragana(token.reading)
     : ''
+}
+
+function findTokenReadingOverride(surface: string, token: JapaneseToken) {
+  return LYRIC_READING_OVERRIDES.find((entry) => entry.match(surface, token))
+}
+
+function shouldJoinTokenizerGroup(token: JapaneseToken): boolean {
+  if (token.pos === '接尾辞') return true
+  if (token.pos === '助動詞') {
+    return ['た', 'だ', 'う', 'ない', 'ぬ', 'ん'].includes(token.surface_form)
+  }
+  return token.pos === '助詞' && token.pos_detail_1 === '接続助詞'
+}
+
+function applyPhraseReadingOverrides(tokens: FuriganaToken[]): FuriganaToken[] {
+  let result = [...tokens]
+
+  for (const override of PHRASE_READING_OVERRIDES) {
+    for (let start = 0; start < result.length; start++) {
+      let surface = ''
+      let end = start
+      while (end < result.length && surface.length < override.surface.length) {
+        surface += result[end].surface
+        end++
+      }
+      if (surface !== override.surface) continue
+
+      const firstGroup = result[start].romajiGroup
+      result = [
+        ...result.slice(0, start),
+        ...override.tokens.map((token, index) => ({
+          ...token,
+          isKanji: true,
+          confidence: 'high' as const,
+          source: 'reading_override' as const,
+          romajiGroup: firstGroup === undefined ? undefined : firstGroup + index,
+          romajiJoinPrevious: false,
+        })),
+        ...result.slice(end),
+      ]
+      start += override.tokens.length - 1
+    }
+  }
+
+  return result
 }
 
 function inflectStemReading(surface: string, stemSurface: string, stemReading: string): string {

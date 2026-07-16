@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { ensureSongPersisted, updateLyrics, saveCalibrations } from '../../services/song-service'
 import { usePlayerStore } from '../../stores/player-store'
 import type { Song } from '../../types'
@@ -18,9 +18,9 @@ interface LineEdit {
 }
 
 export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpdate }: LyricsEditorProps) {
-  const parsedLines = song.lrcParsed ?? []
-  const romajiLines = song.romajiLines ?? {}
-  const translationLines = song.translationLines ?? {}
+  const parsedLines = useMemo(() => song.lrcParsed ?? [], [song.lrcParsed])
+  const romajiLines = useMemo(() => song.romajiLines ?? {}, [song.romajiLines])
+  const translationLines = useMemo(() => song.translationLines ?? {}, [song.translationLines])
 
   const [localCalibrations, setLocalCalibrations] = useState(calibrations)
 

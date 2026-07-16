@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react'
 import { NetEaseLogin } from '../components/login/NetEaseLogin'
 import { useUIStore } from '../stores/ui-store'
+import { createBackupJson, restoreBackupJson } from '../services/backup-service'
 
 export function SettingsPage() {
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
+  const [loginConfigured, setLoginConfigured] = useState<boolean | null>(null)
+  const [loginWritable, setLoginWritable] = useState<boolean | null>(null)
   const [showLogin, setShowLogin] = useState(false)
+  const [appearanceFeedback, setAppearanceFeedback] = useState<string | null>(null)
+  const [dataFeedback, setDataFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const appearance = useUIStore((s) => s.appearance)
   const setAppearance = useUIStore((s) => s.setAppearance)
   const resetAppearance = useUIStore((s) => s.resetAppearance)
@@ -12,9 +16,32 @@ export function SettingsPage() {
   useEffect(() => {
     fetch('/api/qr-login/status')
       .then((r) => r.json())
-      .then((d) => setLoggedIn(d.loggedIn))
-      .catch(() => setLoggedIn(false))
+      .then((d) => {
+        setLoginConfigured(d.configured ?? d.loggedIn ?? false)
+        setLoginWritable(d.writable ?? false)
+      })
+      .catch(() => {
+        setLoginConfigured(false)
+        setLoginWritable(false)
+      })
   }, [])
+
+  const handleExport = () => {
+    try {
+      const blob = new Blob([createBackupJson()], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `japanese-song-backup-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setDataFeedback({ tone: 'success', text: '备份已导出。文件包含曲库、生词、收藏句、学习进度和外观设置。' })
+    } catch {
+      setDataFeedback({ tone: 'error', text: '导出失败，请检查浏览器是否允许下载。' })
+    }
+  }
 
   return (
     <div className="page-shell p-6">
@@ -23,27 +50,32 @@ export function SettingsPage() {
       </div>
 
       <div className="border border-border rounded-xl bg-surface/72 backdrop-blur-sm p-4 mb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="font-semibold text-text">网易云音乐</h3>
             <p className="text-sm text-text-secondary mt-1">
-              {loggedIn === null
+              {loginConfigured === null
                 ? '检查中...'
-                : loggedIn
-                  ? '已登录，可播放 VIP 歌曲'
-                  : '未登录，VIP 歌曲无法播放'}
+                : loginConfigured
+                  ? `已配置登录凭据；音源权限会在播放时验证${loginWritable === false ? '（由服务器管理）' : ''}`
+                  : loginWritable === false
+                    ? '部署环境未配置登录凭据；请由服务器管理员添加环境变量'
+                    : '未配置凭据，部分歌曲可能无法播放'}
             </p>
           </div>
-          <button
-            onClick={() => setShowLogin(true)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              loggedIn
-                ? 'border border-border text-text-secondary hover:border-accent'
-                : 'bg-accent text-white hover:opacity-90'
-            }`}
-          >
-            {loggedIn ? '重新登录' : '登录'}
-          </button>
+          {loginWritable && (
+            <button
+              onClick={() => setShowLogin(true)}
+              type="button"
+              className={`px-4 py-2 rounded-lg text-sm font-medium self-start sm:self-auto ${
+                loginConfigured
+                  ? 'border border-border text-text-secondary hover:border-accent'
+                  : 'bg-accent text-white hover:opacity-90'
+              }`}
+            >
+              {loginConfigured ? '更新凭据' : '配置登录'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -56,6 +88,7 @@ export function SettingsPage() {
             </p>
           </div>
           <button
+            type="button"
             onClick={resetAppearance}
             className="px-3 py-1.5 rounded-lg text-sm font-medium border border-border text-text-secondary hover:border-accent"
           >
@@ -72,6 +105,12 @@ export function SettingsPage() {
             onChange={(e) => {
               const file = e.target.files?.[0]
               if (!file) return
+              setAppearanceFeedback(null)
+              if (file.size > 1024 * 1024) {
+                setAppearanceFeedback('图片超过 1 MB。为避免挤满浏览器存储，请先压缩或缩小图片。')
+                e.target.value = ''
+                return
+              }
               const reader = new FileReader()
               reader.onload = () => {
                 if (typeof reader.result === 'string') {
@@ -81,8 +120,10 @@ export function SettingsPage() {
               reader.readAsDataURL(file)
             }}
           />
+          {appearanceFeedback && <p className="mt-2 text-sm text-danger">{appearanceFeedback}</p>}
           {appearance.backgroundImage && (
             <button
+              type="button"
               onClick={() => setAppearance({ backgroundImage: null })}
               className="mt-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-surface-alt text-text-secondary hover:bg-surface-muted"
             >
@@ -180,6 +221,64 @@ export function SettingsPage() {
             onChange={(value) => setAppearance({ lyricsLineOpacity: value })}
           />
         </div>
+      </div>
+
+      <div className="border border-border rounded-xl bg-surface/72 backdrop-blur-sm p-4 mb-4 space-y-3">
+        <div>
+          <h3 className="font-semibold text-text">数据备份</h3>
+          <p className="text-sm text-text-secondary mt-1">
+            数据目前保存在这个浏览器中。定期导出可避免清理浏览器数据或更换设备后丢失。
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleExport}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:opacity-90"
+          >
+            导出 JSON 备份
+          </button>
+          <label className="cursor-pointer px-4 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary hover:border-accent">
+            导入备份
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="sr-only"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                try {
+                  const result = restoreBackupJson(await file.text())
+                  setDataFeedback({
+                    tone: 'success',
+                    text: `已恢复 ${result.restoredKeys} 组数据。重新加载应用后生效。`,
+                  })
+                } catch (error) {
+                  setDataFeedback({
+                    tone: 'error',
+                    text: error instanceof Error ? error.message : '导入失败。',
+                  })
+                } finally {
+                  e.target.value = ''
+                }
+              }}
+            />
+          </label>
+          {dataFeedback?.tone === 'success' && dataFeedback.text.includes('重新加载') && (
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-surface-alt text-text-secondary"
+            >
+              重新加载应用
+            </button>
+          )}
+        </div>
+        {dataFeedback && (
+          <p className={`text-sm ${dataFeedback.tone === 'success' ? 'text-success' : 'text-danger'}`}>
+            {dataFeedback.text}
+          </p>
+        )}
       </div>
 
       {showLogin && (

@@ -34,6 +34,7 @@ export function AudioPlayer({ src, onRetry, isRetrying }: AudioPlayerProps) {
         <p className="text-text-muted text-sm">暂无音频源（可能需要 VIP）</p>
         {onRetry && (
           <button
+            type="button"
             onClick={onRetry}
             disabled={isRetrying}
             className="mt-2 px-4 py-1.5 rounded-full text-sm font-medium bg-accent text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
@@ -46,9 +47,11 @@ export function AudioPlayer({ src, onRetry, isRetrying }: AudioPlayerProps) {
   }
 
   return (
-    <div className="audio-player">
-      <div className="flex items-center gap-3">
+    <div className="audio-player space-y-2">
+      <div className="flex items-center gap-2 sm:gap-3">
         <button
+          type="button"
+          aria-label={isPlaying ? '暂停' : '播放'}
           onClick={() => setPlaying(!isPlaying)}
           className="w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center shrink-0 active:scale-95 transition-all duration-200 shadow-sm hover:shadow-md"
         >
@@ -67,6 +70,7 @@ export function AudioPlayer({ src, onRetry, isRetrying }: AudioPlayerProps) {
           {formatTime(currentTimeMs)}
         </span>
         <input
+          aria-label="播放进度"
           type="range"
           min={0}
           max={durationMs / 1000 || 0}
@@ -81,7 +85,12 @@ export function AudioPlayer({ src, onRetry, isRetrying }: AudioPlayerProps) {
         <span className="text-xs text-text-muted tabular-nums w-10">
           {formatTime(durationMs)}
         </span>
+      </div>
+      <div className="flex items-center justify-end gap-2 pr-1">
+        <span className="mr-1 text-xs text-text-muted">播放速度</span>
         <button
+          type="button"
+          aria-label="降低播放速度"
           onClick={() => {
             const idx = SPEEDS.indexOf(playbackRate)
             if (idx > 0) setPlaybackRate(SPEEDS[idx - 1])
@@ -95,6 +104,8 @@ export function AudioPlayer({ src, onRetry, isRetrying }: AudioPlayerProps) {
           {playbackRate}x
         </span>
         <button
+          type="button"
+          aria-label="提高播放速度"
           onClick={() => {
             const idx = SPEEDS.indexOf(playbackRate)
             if (idx < SPEEDS.length - 1) setPlaybackRate(SPEEDS[idx + 1])

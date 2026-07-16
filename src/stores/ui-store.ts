@@ -15,6 +15,8 @@ export interface AppearanceSettings {
   lyricsSubtextColor: string
 }
 
+export const UI_STORAGE_KEY = 'jpsong_ui'
+
 interface UIState {
   appearance: AppearanceSettings
   setAppearance: (patch: Partial<AppearanceSettings>) => void
@@ -46,7 +48,7 @@ export const useUIStore = create<UIState>()(
       resetAppearance: () => set({ appearance: defaultAppearance }),
     }),
     {
-      name: 'jpsong_ui',
+      name: UI_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
       merge: (persistedState, currentState) => {
         const typedState = persistedState as Partial<UIState> | undefined

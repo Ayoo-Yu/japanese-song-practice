@@ -13,8 +13,6 @@ export function GlobalAudio() {
   const setCurrentTime = usePlayerStore((s) => s.setCurrentTime)
   const setDuration = usePlayerStore((s) => s.setDuration)
   const setPlaying = usePlayerStore((s) => s.setPlaying)
-  const setVocalEnergy = usePlayerStore((s) => s.setVocalEnergy)
-  void setVocalEnergy
   const setPendingSeek = usePlayerStore((s) => s.setPendingSeek)
   const setPlayRangeEnd = usePlayerStore((s) => s.setPlayRangeEnd)
 
@@ -25,33 +23,35 @@ export function GlobalAudio() {
     }
   }, [setDuration])
 
-  // Tick loop for time + vocal energy — runs once, reads src from DOM
-  useEffect(() => {
-    let timerId: ReturnType<typeof setTimeout>
-    const tick = () => {
-      const audio = audioRef.current
-      if (audio) {
-        setCurrentTime(audio.currentTime * 1000)
-      }
-      timerId = setTimeout(tick, 8)
-    }
-    timerId = setTimeout(tick, 8)
-    return () => clearTimeout(timerId)
+  const onTimeUpdate = useCallback(() => {
+    const audio = audioRef.current
+    if (audio) setCurrentTime(audio.currentTime * 1000)
   }, [setCurrentTime])
 
   // Audio events
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
+    const onEnded = () => setPlaying(false)
+    const onError = () => setPlaying(false)
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
     audio.addEventListener('durationchange', onLoadedMetadata)
-    audio.addEventListener('ended', () => setPlaying(false))
-    audio.addEventListener('error', () => setPlaying(false))
+    audio.addEventListener('timeupdate', onTimeUpdate)
+    audio.addEventListener('ended', onEnded)
+    audio.addEventListener('error', onError)
     return () => {
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
       audio.removeEventListener('durationchange', onLoadedMetadata)
+      audio.removeEventListener('timeupdate', onTimeUpdate)
+      audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('error', onError)
     }
-  }, [onLoadedMetadata, setPlaying])
+  }, [onLoadedMetadata, onTimeUpdate, setPlaying])
+
+  useEffect(() => {
+    setCurrentTime(0)
+    setDuration(0)
+  }, [audioSrc, setCurrentTime, setDuration])
 
   // Play/pause
   useEffect(() => {

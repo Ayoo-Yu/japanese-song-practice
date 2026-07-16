@@ -5,6 +5,7 @@ import { useSpeech } from '../hooks/useSpeech'
 import { SongHeader } from '../components/song/SongHeader'
 import { AudioPlayer } from '../components/song/AudioPlayer'
 import { LyricsEditor } from '../components/song/LyricsEditor'
+import { StageSelector } from '../components/song/StageSelector'
 import { usePlayerStore } from '../stores/player-store'
 import { useUIStore } from '../stores/ui-store'
 import { ensureAudioUrl } from '../services/lyrics-service'
@@ -13,7 +14,9 @@ import { computeDictionaryRomaji } from '../lib/furigana-service'
 import { extractColorsCached } from '../lib/color-extract'
 import type { ExtractedColors } from '../lib/color-extract'
 import { listSavedLines, listSavedWords, toggleSavedLine, toggleSavedWord } from '../services/collections-service'
+import { getMasteredWordKeys, getSongLearningProgress, setSongLearningStage, wordMasteryKey } from '../services/learning-service'
 import type { Song, FuriganaToken } from '../types'
+import type { PracticeStage } from '../types'
 
 export function SongPage() {
   const { id } = useParams<{ id: string }>()
@@ -42,10 +45,8 @@ export function SongPage() {
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const prevLineRef = useRef(-1)
 
-  const [showFurigana, setShowFurigana] = useState(true)
-  const [showRomaji, setShowRomaji] = useState(true)
-  const [showTranslation, setShowTranslation] = useState(true)
-  const [showKTV, setShowKTV] = useState(true)
+  const [currentStage, setCurrentStage] = useState<PracticeStage>(1)
+  const [masteredWordKeys, setMasteredWordKeys] = useState<Set<string>>(new Set())
   const [savedWordIds, setSavedWordIds] = useState<Set<string>>(new Set())
   const [savedLineIds, setSavedLineIds] = useState<Set<string>>(new Set())
   const [isRegenerating, setIsRegenerating] = useState(false)
@@ -66,13 +67,17 @@ export function SongPage() {
   } | null>(null)
   const appearance = useUIStore((s) => s.appearance)
   const [albumColors, setAlbumColors] = useState<ExtractedColors | null>(null)
+  const activeNeteaseId = song?.neteaseId
 
   useEffect(() => {
-    if (song?.albumArtUrl) {
-      extractColorsCached(song.albumArtUrl).then(setAlbumColors)
-    } else {
-      setAlbumColors(null)
-    }
+    let cancelled = false
+    const colors = song?.albumArtUrl
+      ? extractColorsCached(song.albumArtUrl)
+      : Promise.resolve(null)
+    colors.then((result) => {
+      if (!cancelled) setAlbumColors(result)
+    })
+    return () => { cancelled = true }
   }, [song?.albumArtUrl])
 
   const safePanelColor = ensurePanelColor(appearance.lyricsPanelColor)
@@ -120,6 +125,17 @@ export function SongPage() {
       setSavedLineIds(new Set(lines.map((item) => item.id)))
     })
   }, [])
+
+  useEffect(() => {
+    if (!activeNeteaseId) return
+    let cancelled = false
+    Promise.resolve().then(() => {
+      if (cancelled) return
+      setCurrentStage(getSongLearningProgress(activeNeteaseId).currentStage)
+      setMasteredWordKeys(getMasteredWordKeys())
+    })
+    return () => { cancelled = true }
+  }, [activeNeteaseId])
 
   // Detect user scroll on the lyrics viewport
   useEffect(() => {
@@ -185,6 +201,7 @@ export function SongPage() {
   }
 
   const displaySong = isEditing && editSong ? editSong : song
+  const stageConfig = getStageConfig(currentStage)
   const lines = displaySong.stageLyrics?.[1] ?? []
   const furiganaData = displaySong.furiganaData ?? []
   const furiganaByIndex = new Map(furiganaData.map((fl) => [fl.lineIndex, fl]))
@@ -259,7 +276,7 @@ export function SongPage() {
         ['--lyrics-muted-color' as string]: safeSecondaryColor,
       }}
     >
-      <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur-sm p-4 space-y-3">
+      <div className="sticky top-14 z-10 bg-surface/90 backdrop-blur-sm p-4 space-y-3">
         <SongHeader
           title={song.title}
           artist={song.artist}
@@ -267,19 +284,17 @@ export function SongPage() {
           album={song.album}
         />
         <AudioPlayer src={audioSrc} onRetry={handleRetryAudio} isRetrying={isRetryingAudio} />
+        <div className="space-y-2">
+          <StageSelector
+            currentStage={currentStage}
+            onStageChange={(stage) => {
+              setCurrentStage(stage)
+              setSongLearningStage(song.neteaseId, stage)
+            }}
+          />
+          <p className="text-[11px] text-text-muted">{stageConfig.description}</p>
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <TogglePill active={showFurigana} onClick={() => setShowFurigana((v) => !v)}>
-            平假名
-          </TogglePill>
-          <TogglePill active={showRomaji} onClick={() => setShowRomaji((v) => !v)}>
-            罗马音
-          </TogglePill>
-          <TogglePill active={showTranslation} onClick={() => setShowTranslation((v) => !v)}>
-            翻译
-          </TogglePill>
-          <TogglePill active={showKTV} onClick={() => setShowKTV((v) => !v)}>
-            渐变
-          </TogglePill>
           <button
             onClick={handleRegenerateFurigana}
             disabled={isRegenerating}
@@ -349,7 +364,7 @@ export function SongPage() {
             }
             const fLine = furiganaByIndex.get(i)
             const hasFurigana = fLine && fLine.words.some((w) => w.isKanji)
-            const lineProgress = isPlaying && showKTV
+            const lineProgress = isPlaying && stageConfig.ktv
               ? getLineProgress(parsedLines, i, currentTimeMs, calibrations[i])
               : 0
             const isActive = i === currentLineIndex && isPlaying
@@ -372,94 +387,26 @@ export function SongPage() {
               >
                 <div className="lyrics-line-base" />
                 <div className={`lyrics-line-bg ${isActive ? 'active' : ''}`} />
-                <div className="absolute right-2 top-2 z-20 flex gap-1">
-                  <button
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      const saved = await toggleSavedLine({
-                        id: lineId,
-                        neteaseId: song.neteaseId,
-                        songTitle: song.title,
-                        artist: song.artist,
-                        lineIndex: i,
-                        lineText: line.original,
-                        romaji: line.romaji || undefined,
-                        translation: line.translation || undefined,
-                      })
-                      setSavedLineIds((prev) => {
-                        const next = new Set(prev)
-                        if (saved) next.add(lineId)
-                        else next.delete(lineId)
-                        return next
-                      })
-                    }}
-                    className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
-                      lineSaved
-                        ? 'bg-accent/20 text-accent ring-1 ring-accent/25'
-                        : 'bg-surface/82 text-text-secondary ring-1 ring-black/8 hover:bg-surface'
-                    }`}
-                  >
-                    {lineSaved ? '已收藏' : '收藏'}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (speakingLineIndex === i) {
-                        stopSpeech()
-                        setSpeakingLineIndex(null)
-                      } else {
-                        stopSpeech()
-                        speak(line.original)
-                        setSpeakingLineIndex(i)
-                        setTimeout(() => setSpeakingLineIndex(null), 3000)
-                      }
-                    }}
-                    className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
-                      speakingLineIndex === i
-                        ? 'bg-accent/30 text-accent ring-1 ring-accent/25'
-                        : 'bg-surface/82 text-text-secondary ring-1 ring-black/8 hover:bg-surface'
-                    }`}
-                  >
-                    {speakingLineIndex === i ? '朗读中' : '朗读'}
-                  </button>
-                </div>
                 <div className="relative z-10">
                   <KTVLine progress={lineProgress}>
                   {hasFurigana ? (
                       <FuriganaText
                         tokens={fLine.words}
-                        showFurigana={showFurigana}
+                        showReading={(token) => stageConfig.furigana && (
+                          currentStage !== 3 || !masteredWordKeys.has(wordMasteryKey(token.surface, token.reading))
+                        )}
                         savedWordIds={savedWordIds}
-                        onWordToggle={async (token) => {
+                        onWordSelect={(token, tokenIndex) => {
                           const wordId = `${song.neteaseId}:${i}:${token.surface}:${token.reading}`
-                          const saved = await toggleSavedWord({
-                            id: wordId,
-                            neteaseId: song.neteaseId,
-                            songTitle: song.title,
-                            artist: song.artist,
-                            lineIndex: i,
-                            lineText: line.original,
-                            surface: token.surface,
-                            reading: token.reading,
-                          })
-                          setSavedWordIds((prev) => {
-                            const next = new Set(prev)
-                            if (saved) next.add(wordId)
-                            else next.delete(wordId)
-                            return next
-                          })
                           setFuriganaHint({
                             lineIndex: i,
-                            tokenIndex: fLine.words.findIndex((word) =>
-                              word.surface === token.surface && word.reading === token.reading && word.isKanji === token.isKanji,
-                            ),
+                            tokenIndex,
                             surface: token.surface,
                             reading: token.reading,
                             confidence: token.confidence ?? 'high',
                             source: token.source,
-                            saved,
+                            saved: savedWordIds.has(wordId),
                           })
-                          return saved
                         }}
                         wordIdForToken={(token) => `${song.neteaseId}:${i}:${token.surface}:${token.reading}`}
                       />
@@ -467,11 +414,11 @@ export function SongPage() {
                     <div className="text-line">{line.original}</div>
                   )}
                   </KTVLine>
-                  {(lineHasLowConfidence || (lineHasMediumConfidence && !mediumIgnored && !ignoreAllMediumHints)) && (
+                  {stageConfig.furigana && (lineHasLowConfidence || (lineHasMediumConfidence && !mediumIgnored && !ignoreAllMediumHints)) && (
                     <div className={`mt-1 text-[11px] ${
                       lineHasLowConfidence ? 'text-warning' : 'text-text-muted'
                     }`}>
-                      {lineHasLowConfidence ? '这句里有低置信度注音，点具体单词可查看原因并顺手收藏。' : '这句里有中等置信度注音，点具体单词可查看来源。'}
+                      {lineHasLowConfidence ? '这句里有低置信度注音，点具体单词可查看原因。' : '这句里有中等置信度注音，点具体单词可查看来源。'}
                     </div>
                   )}
                   {lineHint && (
@@ -495,8 +442,39 @@ export function SongPage() {
                             {getConfidenceDescription(lineHint)}
                           </p>
                           <p className="mt-1 text-sm leading-6 text-slate-300">
-                            {lineHint.saved ? '已加入生词本，后面可以在曲库页继续整理。' : '还没有加入生词本，再点一次这个词可以取消收藏。'}
+                            {lineHint.saved ? '已加入生词本，后面可以在曲库页继续整理。' : '尚未加入生词本。'}
                           </p>
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              const wordId = `${song.neteaseId}:${i}:${lineHint.surface}:${lineHint.reading}`
+                              const saved = await toggleSavedWord({
+                                id: wordId,
+                                neteaseId: song.neteaseId,
+                                songTitle: song.title,
+                                artist: song.artist,
+                                lineIndex: i,
+                                lineText: line.original,
+                                surface: lineHint.surface,
+                                reading: lineHint.reading,
+                              })
+                              setSavedWordIds((prev) => {
+                                const next = new Set(prev)
+                                if (saved) next.add(wordId)
+                                else next.delete(wordId)
+                                return next
+                              })
+                              setFuriganaHint((prev) => prev?.lineIndex === i ? { ...prev, saved } : prev)
+                            }}
+                            className={`mt-3 rounded-full px-3 py-1.5 text-xs font-medium ${
+                              lineHint.saved
+                                ? 'border border-white/15 bg-white/8 text-slate-200'
+                                : 'bg-cyan-400 text-slate-950'
+                            }`}
+                          >
+                            {lineHint.saved ? '移出生词本' : '加入生词本'}
+                          </button>
                           <div className="mt-3">
                             {isEditingRomaji ? (
                               <div className="space-y-3">
@@ -757,16 +735,79 @@ export function SongPage() {
                       </div>
                     </div>
                   )}
-                  {showRomaji && line.romaji && (
+                  {stageConfig.romaji && line.romaji && (
                     <div className="romaji">
                       <KTVLine progress={lineProgress}>
                         {line.romaji}
                       </KTVLine>
                     </div>
                   )}
-                  {showTranslation && line.translation && (
+                  {stageConfig.translation && line.translation && (
                     <div className="translation">{line.translation}</div>
                   )}
+                  <div className="lyrics-line-actions mt-2 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        jumpToLineAndPlay(i)
+                      }}
+                      className="rounded px-2.5 py-1 text-[11px] font-medium bg-surface/82 text-text-secondary ring-1 ring-black/8 hover:bg-surface"
+                    >
+                      播放此句
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        const saved = await toggleSavedLine({
+                          id: lineId,
+                          neteaseId: song.neteaseId,
+                          songTitle: song.title,
+                          artist: song.artist,
+                          lineIndex: i,
+                          lineText: line.original,
+                          romaji: line.romaji || undefined,
+                          translation: line.translation || undefined,
+                        })
+                        setSavedLineIds((prev) => {
+                          const next = new Set(prev)
+                          if (saved) next.add(lineId)
+                          else next.delete(lineId)
+                          return next
+                        })
+                      }}
+                      className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        lineSaved
+                          ? 'bg-accent/20 text-accent ring-1 ring-accent/25'
+                          : 'bg-surface/82 text-text-secondary ring-1 ring-black/8 hover:bg-surface'
+                      }`}
+                    >
+                      {lineSaved ? '已收藏' : '收藏此句'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (speakingLineIndex === i) {
+                          stopSpeech()
+                          setSpeakingLineIndex(null)
+                        } else {
+                          stopSpeech()
+                          speak(line.original)
+                          setSpeakingLineIndex(i)
+                          setTimeout(() => setSpeakingLineIndex(null), 3000)
+                        }
+                      }}
+                      className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        speakingLineIndex === i
+                          ? 'bg-accent/30 text-accent ring-1 ring-accent/25'
+                          : 'bg-surface/82 text-text-secondary ring-1 ring-black/8 hover:bg-surface'
+                      }`}
+                    >
+                      {speakingLineIndex === i ? '停止朗读' : '朗读此句'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )
@@ -774,21 +815,6 @@ export function SongPage() {
         </div>
       )}
     </div>
-  )
-}
-
-function TogglePill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
-        active
-          ? 'bg-accent/15 text-accent border border-accent/30'
-          : 'bg-surface-alt text-text-muted border border-transparent hover:text-text-secondary'
-      }`}
-    >
-      {children}
-    </button>
   )
 }
 
@@ -810,15 +836,15 @@ function KTVLine({ progress, children }: { progress: number; children: React.Rea
 
 function FuriganaText({
   tokens,
-  showFurigana,
+  showReading,
   savedWordIds,
-  onWordToggle,
+  onWordSelect,
   wordIdForToken,
 }: {
   tokens: FuriganaToken[]
-  showFurigana: boolean
+  showReading: (token: FuriganaToken) => boolean
   savedWordIds: Set<string>
-  onWordToggle: (token: FuriganaToken) => boolean | Promise<boolean>
+  onWordSelect: (token: FuriganaToken, tokenIndex: number) => void
   wordIdForToken: (token: FuriganaToken) => string
 }) {
   return (
@@ -831,15 +857,16 @@ function FuriganaText({
             : token.confidence === 'medium'
               ? 'furigana-medium'
               : ''
-          if (showFurigana) {
+          if (showReading(token)) {
             return (
               <button
                 key={i}
                 type="button"
-                title={token.confidence === 'low' ? '注音可信度较低' : token.confidence === 'medium' ? '注音可信度中等' : '收藏这个单词'}
+                aria-label={`${token.surface}，读作${token.reading}，查看详情`}
+                title={token.confidence === 'low' ? '注音可信度较低，点按查看详情' : token.confidence === 'medium' ? '注音可信度中等，点按查看详情' : '查看读音详情'}
                 onClick={(e) => {
                   e.stopPropagation()
-                  void onWordToggle(token)
+                  onWordSelect(token, i)
                 }}
                 className={`inline-flex items-end rounded-sm px-0.5 align-baseline ${confidenceClass} ${saved ? 'furigana-saved' : ''}`}
               >
@@ -851,10 +878,11 @@ function FuriganaText({
             <button
             key={i}
             type="button"
-            title={token.confidence === 'low' ? '注音可信度较低' : token.confidence === 'medium' ? '注音可信度中等' : '收藏这个单词'}
+            aria-label={`${token.surface}，读作${token.reading}，查看详情`}
+            title={token.confidence === 'low' ? '注音可信度较低，点按查看详情' : token.confidence === 'medium' ? '注音可信度中等，点按查看详情' : '查看读音详情'}
             onClick={(e) => {
               e.stopPropagation()
-              void onWordToggle(token)
+              onWordSelect(token, i)
             }}
             className={`inline-flex items-end rounded-sm px-0.5 ${confidenceClass} ${saved ? 'furigana-saved' : ''}`}
           >
@@ -878,7 +906,21 @@ type FuriganaHint = {
   saved: boolean
 }
 
+function getStageConfig(stage: PracticeStage) {
+  const configs = {
+    1: { furigana: true, romaji: true, translation: true, ktv: false, description: '全辅助：注音、罗马音与翻译同时显示。' },
+    2: { furigana: true, romaji: false, translation: true, ktv: false, description: '隐藏罗马音，依靠假名注音阅读。' },
+    3: { furigana: true, romaji: false, translation: true, ktv: false, description: '已掌握的词不再显示注音，只提示待复习生词。' },
+    4: { furigana: false, romaji: false, translation: true, ktv: false, description: '无注音阅读，仍保留翻译作为核对。' },
+    5: { furigana: false, romaji: false, translation: false, ktv: true, description: '只看原文，跟随播放进度进行 KTV 跟唱。' },
+  } as const
+  return configs[stage]
+}
+
 function getConfidenceDescription(hint: FuriganaHint): string {
+  if (hint.source === 'reading_override') {
+    return '这条注音来自项目内置的专名校正，已按高置信度处理。'
+  }
   if (hint.source === 'romaji_fallback') {
     return '这条注音是根据罗马音兜底推出来的，原始罗马音不完整或分词不稳时，准确率会下降。'
   }

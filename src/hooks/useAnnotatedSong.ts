@@ -11,8 +11,12 @@ export function useAnnotatedSong(neteaseId: number | null, preview = false) {
     if (!neteaseId) return
 
     let cancelled = false
-    setIsLoading(true)
-    setError(null)
+    Promise.resolve().then(() => {
+      if (!cancelled) {
+        setIsLoading(true)
+        setError(null)
+      }
+    })
 
     getAnnotatedSong(neteaseId, preview)
       .then((result) => {

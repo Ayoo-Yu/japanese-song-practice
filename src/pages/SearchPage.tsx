@@ -54,19 +54,13 @@ export function SearchPage() {
     try {
       const existing = await getSongByNeteaseId(song.id)
       if (existing) {
-        setAddedIds((prev) => {
-          const next = new Set(prev).add(song.id)
-          cache.addId(song.id)
-          return next
-        })
+        setAddedIds((prev) => new Set(prev).add(song.id))
+        cache.addId(song.id)
         return
       }
       await createSongFromSearch(song)
-      setAddedIds((prev) => {
-        const next = new Set(prev).add(song.id)
-        cache.addId(song.id)
-        return next
-      })
+      setAddedIds((prev) => new Set(prev).add(song.id))
+      cache.addId(song.id)
     } catch {
       setError('添加歌曲失败')
     } finally {
