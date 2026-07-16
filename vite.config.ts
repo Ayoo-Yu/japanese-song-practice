@@ -225,6 +225,7 @@ export default defineConfig(({ mode }) => {
   const musicCookie = musicCookieValue ? `MUSIC_U=${musicCookieValue}` : ''
   const appHost = process.env.HOST?.trim() || env.HOST?.trim() || '127.0.0.1'
   const appPort = Number(process.env.PORT || env.PORT || 4173)
+  const allowedHosts = ['.up.railway.app', '.railway.internal']
   const apiProxy: Record<string, ProxyOptions> = {
     '/api/netease': {
       target: 'https://music.163.com',
@@ -245,11 +246,13 @@ export default defineConfig(({ mode }) => {
     server: {
       host: appHost,
       port: Number.isFinite(appPort) ? appPort : 4173,
+      allowedHosts,
       proxy: apiProxy,
     },
     preview: {
       host: appHost,
       port: Number.isFinite(appPort) ? appPort : 4173,
+      allowedHosts,
       proxy: apiProxy,
     },
   }
