@@ -223,6 +223,14 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const musicCookieValue = process.env.NETEASE_MUSIC_U?.trim() || env.NETEASE_MUSIC_U?.trim()
   const musicCookie = musicCookieValue ? `MUSIC_U=${musicCookieValue}` : ''
+  const neteaseHeaders = {
+    Referer: 'https://music.163.com/',
+    'User-Agent':
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept-Language': 'zh-CN,zh;q=0.9',
+    'X-Real-IP': '111.72.0.1',
+    ...(musicCookie ? { Cookie: musicCookie } : {}),
+  }
   const appHost = process.env.HOST?.trim() || env.HOST?.trim() || '127.0.0.1'
   const appPort = Number(process.env.PORT || env.PORT || 4173)
   const allowedHosts = [
@@ -235,13 +243,13 @@ export default defineConfig(({ mode }) => {
       target: 'https://music.163.com',
       changeOrigin: true,
       rewrite: (requestPath) => requestPath.replace(/^\/api\/netease/, '/api'),
-      headers: musicCookie ? { Cookie: musicCookie } : {},
+      headers: neteaseHeaders,
     },
     '/api/local': {
       target: 'http://localhost:3000',
       changeOrigin: true,
       rewrite: (requestPath) => requestPath.replace(/^\/api\/local/, ''),
-      headers: musicCookie ? { Cookie: musicCookie } : {},
+      headers: neteaseHeaders,
     },
   }
 
