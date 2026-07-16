@@ -1,5 +1,6 @@
 import type { Song, FuriganaLine, FuriganaToken } from '../types'
 import { computeFuriganaForLine, FURIGANA_VERSION } from '../lib/furigana-service'
+import { shouldAnnotateJapaneseLyrics } from '../lib/lyrics-language'
 import { buildStageLyrics } from './lyrics-service'
 import { removeCollectionsForSong } from './collections-service'
 import { removeSongLearningData } from './learning-service'
@@ -115,17 +116,26 @@ export async function updateLyrics(
   // Rebuild romaji/translation maps
   const romajiMap = new Map(Object.entries(romajiLines).map(([k, v]) => [Number(k), v]))
   const translationMap = new Map(Object.entries(translationLines).map(([k, v]) => [Number(k), v]))
+  const annotateJapanese = shouldAnnotateJapaneseLyrics(lrcParsed, romajiMap.values())
 
   // Recompute furigana
   const furiganaData: FuriganaLine[] = []
-  for (let i = 0; i < lrcParsed.length; i++) {
-    const line = lrcParsed[i]
-    const romaji = romajiMap.get(line.timeMs) ?? ''
-    const tokens = await computeFuriganaForLine(line.text, romaji)
-    if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
+  if (annotateJapanese) {
+    for (let i = 0; i < lrcParsed.length; i++) {
+      const line = lrcParsed[i]
+      const romaji = romajiMap.get(line.timeMs) ?? ''
+      const tokens = await computeFuriganaForLine(line.text, romaji)
+      if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
+    }
   }
 
-  const stageLyrics = await buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
+  const stageLyrics = await buildStageLyrics(
+    lrcParsed,
+    romajiMap,
+    translationMap,
+    furiganaData,
+    annotateJapanese,
+  )
 
   const updated: Song = {
     ...song,
@@ -158,16 +168,25 @@ export async function regenerateFurigana(
   const lrcParsed = song.lrcParsed ?? []
   const romajiMap = new Map(Object.entries(song.romajiLines ?? {}).map(([k, v]) => [Number(k), v]))
   const translationMap = new Map(Object.entries(song.translationLines ?? {}).map(([k, v]) => [Number(k), v]))
+  const annotateJapanese = shouldAnnotateJapaneseLyrics(lrcParsed, romajiMap.values())
 
   const furiganaData: FuriganaLine[] = []
-  for (let i = 0; i < lrcParsed.length; i++) {
-    const line = lrcParsed[i]
-    const romaji = romajiMap.get(line.timeMs) ?? ''
-    const tokens = await computeFuriganaForLine(line.text, romaji)
-    if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
+  if (annotateJapanese) {
+    for (let i = 0; i < lrcParsed.length; i++) {
+      const line = lrcParsed[i]
+      const romaji = romajiMap.get(line.timeMs) ?? ''
+      const tokens = await computeFuriganaForLine(line.text, romaji)
+      if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
+    }
   }
 
-  const stageLyrics = await buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
+  const stageLyrics = await buildStageLyrics(
+    lrcParsed,
+    romajiMap,
+    translationMap,
+    furiganaData,
+    annotateJapanese,
+  )
   return saveSong({
     ...song,
     furiganaData: applyFuriganaOverrides(furiganaData, song.confirmedFuriganaTokenIds),

@@ -4,7 +4,7 @@ import { getJapaneseTokenizer } from './japanese-tokenizer'
 import type { JapaneseToken } from './japanese-tokenizer'
 import type { FuriganaToken } from '../types'
 
-export const FURIGANA_VERSION = 10
+export const FURIGANA_VERSION = 11
 
 const PHRASE_READING_OVERRIDES: Array<{
   surface: string

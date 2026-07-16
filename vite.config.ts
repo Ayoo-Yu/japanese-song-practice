@@ -1,7 +1,7 @@
 import { defineConfig, type Connect, type Plugin, type ProxyOptions, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import http from 'http'
+import http, { type IncomingMessage, type ServerResponse } from 'http'
 import https from 'https'
 import fs from 'fs'
 import path from 'path'
@@ -168,31 +168,77 @@ function healthCheck(): Plugin {
 }
 
 function kuromojiDictPlugin(): Plugin {
+  const serveFile = (
+    req: IncomingMessage,
+    res: ServerResponse,
+    filePath: string,
+    contentType: string,
+  ) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.statusCode = 405
+      res.setHeader('Allow', 'GET, HEAD')
+      res.end('Method not allowed')
+      return
+    }
+
+    const stat = fs.statSync(filePath)
+    res.statusCode = 200
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Length', stat.size)
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    if (req.method === 'HEAD') {
+      res.end()
+      return
+    }
+
+    fs.createReadStream(filePath).pipe(res)
+  }
+
+  const install = (middlewares: Connect.Server) => {
+    middlewares.use('/kuromoji-dict', (req, res) => {
+      let reqPath = ''
+      try {
+        reqPath = decodeURIComponent((req.url ?? '/').split('?')[0]).replace(/^\/+/, '')
+      } catch {
+        res.statusCode = 400
+        res.end('Invalid dictionary path')
+        return
+      }
+
+      const dictRoot = path.resolve(kuromojiDictDir)
+      const filePath = path.resolve(dictRoot, reqPath)
+      if (
+        !reqPath
+        || !filePath.startsWith(`${dictRoot}${path.sep}`)
+        || !fs.existsSync(filePath)
+        || !fs.statSync(filePath).isFile()
+      ) {
+        res.statusCode = 404
+        res.end('Dictionary file not found')
+        return
+      }
+
+      // Vite preview otherwise marks *.gz assets as Content-Encoding: gzip.
+      // Browsers transparently decompress them, while kuromoji expects the raw gzip bytes.
+      serveFile(req, res, filePath, 'application/octet-stream')
+    })
+
+    middlewares.use('/vendor/kuromoji.js', (req, res) => {
+      serveFile(req, res, kuromojiBrowserFile, 'application/javascript; charset=utf-8')
+    })
+
+    middlewares.use('/vendor/zlib.min.js', (req, res) => {
+      serveFile(req, res, zlibBrowserFile, 'application/javascript; charset=utf-8')
+    })
+  }
+
   return {
     name: 'kuromoji-dict',
     configureServer(server) {
-      server.middlewares.use('/kuromoji-dict', (req, res) => {
-        const reqPath = (req.url ?? '/').split('?')[0].replace(/^\/+/, '')
-        const filePath = path.join(kuromojiDictDir, reqPath)
-        if (!filePath.startsWith(kuromojiDictDir) || !fs.existsSync(filePath)) {
-          res.statusCode = 404
-          res.end('Dictionary file not found')
-          return
-        }
-
-        res.setHeader('Content-Type', 'application/octet-stream')
-        fs.createReadStream(filePath).pipe(res)
-      })
-
-      server.middlewares.use('/vendor/kuromoji.js', (_req, res) => {
-        res.setHeader('Content-Type', 'application/javascript')
-        fs.createReadStream(kuromojiBrowserFile).pipe(res)
-      })
-
-      server.middlewares.use('/vendor/zlib.min.js', (_req, res) => {
-        res.setHeader('Content-Type', 'application/javascript')
-        fs.createReadStream(zlibBrowserFile).pipe(res)
-      })
+      install(server.middlewares)
+    },
+    configurePreviewServer(server) {
+      install(server.middlewares)
     },
     generateBundle() {
       for (const filename of fs.readdirSync(kuromojiDictDir)) {
