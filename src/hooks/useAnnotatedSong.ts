@@ -8,15 +8,15 @@ export function useAnnotatedSong(neteaseId: number | null, preview = false) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!neteaseId) return
-
     let cancelled = false
 
     Promise.resolve()
       .then(() => {
         if (cancelled) return null
-        setIsLoading(true)
+        setSong(null)
+        setIsLoading(!!neteaseId)
         setError(null)
+        if (!neteaseId) return null
         return getAnnotatedSong(neteaseId, preview)
       })
       .then((result) => {

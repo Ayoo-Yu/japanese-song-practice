@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { listUserSongs, deleteSong } from '../services/song-service'
 import { listSavedLines, listSavedWords, removeSavedLine, removeSavedWord } from '../services/collections-service'
 import type { Song, SavedLine, SavedWord } from '../types'
+import { usePlayerStore } from '../stores/player-store'
+import { useSearchCache } from '../stores/search-cache-store'
 
 type LibraryTabKey = 'songs' | 'words' | 'lines'
 
@@ -18,6 +20,8 @@ export function LibraryPage() {
   const [savedLines, setSavedLines] = useState<SavedLine[]>([])
   const [managing, setManaging] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [wordQuery, setWordQuery] = useState('')
   const [lineQuery, setLineQuery] = useState('')
   const tab = getLibraryTab(searchParams.get('tab'))
@@ -27,18 +31,42 @@ export function LibraryPage() {
     setSearchParams(nextTab === 'songs' ? {} : { tab: nextTab })
   }
 
-  const reload = () => {
-    listUserSongs().then(setSongs)
-    listSavedWords().then(setSavedWords)
-    listSavedLines().then(setSavedLines)
+  const resetPlayer = usePlayerStore((state) => state.resetPlayer)
+  const removeCachedSongId = useSearchCache((state) => state.removeId)
+
+  const reload = async () => {
+    const [nextSongs, nextWords, nextLines] = await Promise.all([
+      listUserSongs(),
+      listSavedWords(),
+      listSavedLines(),
+    ])
+    setSongs(nextSongs)
+    setSavedWords(nextWords)
+    setSavedLines(nextLines)
   }
 
-  useEffect(() => { reload() }, [])
+  useEffect(() => { void Promise.resolve().then(reload) }, [])
 
   const handleDelete = async (id: string) => {
-    await deleteSong(id)
-    setConfirmId(null)
-    reload()
+    const target = songs.find((song) => song.id === id)
+    if (!target) return
+
+    setDeletingId(id)
+    setDeleteError(null)
+    try {
+      const deleted = await deleteSong(id)
+      if (!deleted) throw new Error('歌曲不存在或已经被删除')
+      removeCachedSongId(target.neteaseId)
+      if (usePlayerStore.getState().nowPlaying?.neteaseId === target.neteaseId) {
+        resetPlayer()
+      }
+      setConfirmId(null)
+      await reload()
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : '删除失败，请稍后再试')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const practiceableSongs = songs.filter(isPracticeReady)
@@ -86,7 +114,7 @@ export function LibraryPage() {
                   : 'bg-surface-alt text-text-secondary hover:text-text'
               }`}
             >
-              {managing ? '完成' : '管理'}
+              {managing ? '完成' : '删除歌曲'}
             </button>
           )}
         </div>
@@ -103,11 +131,16 @@ export function LibraryPage() {
         <LibraryTab active={tab === 'lines'} onClick={() => setTab('lines')} count={savedLines.length}>句子</LibraryTab>
       </div>
 
+      {deleteError && (
+        <p className="mb-4 rounded-lg bg-danger/10 px-3 py-2 text-sm font-medium text-danger">{deleteError}</p>
+      )}
+
       {tab === 'songs' ? (
         <SongsPanel
           songs={songs}
           managing={managing}
           confirmId={confirmId}
+          deletingId={deletingId}
           onConfirmDelete={setConfirmId}
           onDelete={handleDelete}
         />
@@ -142,14 +175,16 @@ function SongsPanel({
   songs,
   managing,
   confirmId,
+  deletingId,
   onConfirmDelete,
   onDelete,
 }: {
   songs: Song[]
   managing: boolean
   confirmId: string | null
+  deletingId: string | null
   onConfirmDelete: (id: string | null) => void
-  onDelete: (id: string) => void
+  onDelete: (id: string) => void | Promise<void>
 }) {
   if (songs.length === 0) {
     return (
@@ -169,7 +204,9 @@ function SongsPanel({
           <div key={song.id} className="relative">
             <Link
               to={`/song/${song.neteaseId}`}
-              className={`learning-card flex items-center gap-4 p-4 ${managing ? 'pr-16' : ''}`}
+              aria-disabled={managing}
+              tabIndex={managing ? -1 : undefined}
+              className={`learning-card flex items-center gap-4 p-4 ${managing ? 'pointer-events-none pr-28 opacity-80' : ''}`}
             >
               <AlbumArt song={song} />
               <div className="min-w-0 flex-1">
@@ -187,15 +224,19 @@ function SongsPanel({
 
             {managing && (
               confirmId === song.id ? (
-                <div className="absolute bottom-0 right-1 top-0 flex items-center gap-1">
+                <div className="absolute bottom-0 right-2 top-0 z-20 flex items-center gap-1">
                   <button
-                    onClick={() => onDelete(song.id)}
+                    type="button"
+                    onClick={() => { void onDelete(song.id) }}
+                    disabled={deletingId === song.id}
                     className="rounded-lg bg-danger px-2.5 py-1.5 text-xs font-semibold text-white"
                   >
-                    删除
+                    {deletingId === song.id ? '删除中…' : '确认删除'}
                   </button>
                   <button
+                    type="button"
                     onClick={() => onConfirmDelete(null)}
+                    disabled={deletingId === song.id}
                     className="rounded-lg bg-surface px-2.5 py-1.5 text-xs font-semibold text-text-secondary"
                   >
                     取消
@@ -203,8 +244,9 @@ function SongsPanel({
                 </div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => onConfirmDelete(song.id)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-danger/10 px-2 py-1 text-xs font-semibold text-danger"
+                  className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-lg bg-danger/10 px-3 py-1.5 text-xs font-semibold text-danger"
                 >
                   删除
                 </button>

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 export function useSpeech() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -19,6 +19,8 @@ export function useSpeech() {
       audioRef.current = null
     }
   }, [])
+
+  useEffect(() => stop, [stop])
 
   return { speak, stop }
 }

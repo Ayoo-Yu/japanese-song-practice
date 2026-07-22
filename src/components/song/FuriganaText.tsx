@@ -1,8 +1,9 @@
 import type { FuriganaToken } from '../../types'
+import type { FuriganaDisplay } from '../../lib/practice-stages'
 
 interface FuriganaTextProps {
   tokens: FuriganaToken[]
-  showFurigana: boolean
+  furiganaDisplay: FuriganaDisplay
   savedWordIds: Set<string>
   onWordToggle: (token: FuriganaToken) => boolean | Promise<boolean>
   wordIdForToken: (token: FuriganaToken) => string
@@ -10,7 +11,7 @@ interface FuriganaTextProps {
 
 export function FuriganaText({
   tokens,
-  showFurigana,
+  furiganaDisplay,
   savedWordIds,
   onWordToggle,
   wordIdForToken,
@@ -25,7 +26,8 @@ export function FuriganaText({
             : token.confidence === 'medium'
               ? 'furigana-medium'
               : ''
-          if (showFurigana) {
+          const showReading = furiganaDisplay === 'all' || (furiganaDisplay === 'saved' && saved)
+          if (showReading) {
             return (
               <button
                 key={i}

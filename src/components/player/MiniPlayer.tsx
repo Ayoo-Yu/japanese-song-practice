@@ -9,11 +9,15 @@ export function MiniPlayer() {
   const durationMs = usePlayerStore((s) => s.durationMs)
   const loopRange = usePlayerStore((s) => s.loopRange)
   const playbackRate = usePlayerStore((s) => s.playbackRate)
+  const audioSrc = usePlayerStore((s) => s.audioSrc)
+  const audioError = usePlayerStore((s) => s.audioError)
 
   if (!nowPlaying) return null
 
   const progress = durationMs > 0 ? (currentTimeMs / durationMs) * 100 : 0
-  const statusText = loopRange
+  const statusText = !audioSrc || audioError
+    ? '音源不可用'
+    : loopRange
     ? '单句循环'
     : isPlaying
       ? '播放中'
@@ -59,8 +63,10 @@ export function MiniPlayer() {
               <button
                 type="button"
                 onClick={() => setPlaying(!isPlaying)}
+                disabled={!audioSrc || !!audioError}
                 aria-label={isPlaying ? '暂停' : '播放'}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-white transition-transform active:scale-90"
+                title={audioError ?? (!audioSrc ? '当前歌曲没有可用音源' : undefined)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-white transition-transform active:scale-90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isPlaying ? (
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">

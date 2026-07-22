@@ -210,15 +210,38 @@ export function neteaseQRLogin(): Plugin {
             cookieJar = cookieJar ? cookieJar + '; MUSIC_U=' + envCookie : 'MUSIC_U=' + envCookie
           }
 
-          postWeapi('https://music.163.com/weapi/song/enhance/player/url/v1', {
-            ids: `[${id}]`,
-            level: 'exhigh',
-            encodeType: 'aac',
-          })
-            .then(async (apiRes) => {
-              const json = await apiRes.text()
+          const attempts = [
+            { level: 'exhigh', encodeType: 'aac' },
+            { level: 'exhigh', encodeType: 'mp3' },
+            { level: 'higher', encodeType: 'mp3' },
+            { level: 'standard', encodeType: 'mp3' },
+          ]
+
+          Promise.resolve()
+            .then(async () => {
+              let lastPayload: Record<string, unknown> | null = null
+
+              for (const attempt of attempts) {
+                const apiRes = await postWeapi('https://music.163.com/weapi/song/enhance/player/url/v1', {
+                  ids: `[${id}]`,
+                  level: attempt.level,
+                  encodeType: attempt.encodeType,
+                })
+                const text = await apiRes.text()
+                const payload = text ? JSON.parse(text) as Record<string, unknown> : {}
+                lastPayload = payload
+                const data = Array.isArray(payload.data) ? payload.data : []
+                const first = data[0] as { url?: unknown } | undefined
+                if (typeof first?.url === 'string' && first.url) {
+                  return payload
+                }
+              }
+
+              return lastPayload ?? { code: 502, data: [] }
+            })
+            .then((payload) => {
               res.setHeader('Content-Type', 'application/json')
-              res.end(json)
+              res.end(JSON.stringify(payload))
             })
             .catch((err) => {
               res.statusCode = 500

@@ -7,6 +7,7 @@ interface SearchCacheState {
   addedIds: Set<number>
   setCache: (query: string, results: NeteaseSearchResult[], addedIds: Set<number>) => void
   addId: (id: number) => void
+  removeId: (id: number) => void
   clear: () => void
 }
 
@@ -19,6 +20,12 @@ export const useSearchCache = create<SearchCacheState>()((set) => ({
     set((s) => {
       const next = new Set(s.addedIds)
       next.add(id)
+      return { addedIds: next }
+    }),
+  removeId: (id) =>
+    set((s) => {
+      const next = new Set(s.addedIds)
+      next.delete(id)
       return { addedIds: next }
     }),
   clear: () => set({ query: '', results: [], addedIds: new Set() }),

@@ -14,6 +14,7 @@ export function GlobalAudio() {
   const setCurrentTime = usePlayerStore((s) => s.setCurrentTime)
   const setDuration = usePlayerStore((s) => s.setDuration)
   const setPlaying = usePlayerStore((s) => s.setPlaying)
+  const setAudioError = usePlayerStore((s) => s.setAudioError)
   const setVocalEnergy = usePlayerStore((s) => s.setVocalEnergy)
   void setVocalEnergy
   const setPendingSeek = usePlayerStore((s) => s.setPendingSeek)
@@ -23,8 +24,9 @@ export function GlobalAudio() {
     const audio = audioRef.current
     if (audio?.duration && isFinite(audio.duration)) {
       setDuration(audio.duration * 1000)
+      setAudioError(null)
     }
-  }, [setDuration])
+  }, [setAudioError, setDuration])
 
   const syncCurrentTime = useCallback(() => {
     const audio = audioRef.current
@@ -53,7 +55,16 @@ export function GlobalAudio() {
     const audio = audioRef.current
     if (!audio) return
     const handleEnded = () => setPlaying(false)
-    const handleError = () => setPlaying(false)
+    const handleError = () => {
+      const mediaError = audio.error
+      const message = mediaError?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+        ? '浏览器无法读取这个音源，可能是链接已过期或格式不受支持。'
+        : mediaError?.code === MediaError.MEDIA_ERR_NETWORK
+          ? '音频加载中断，请检查网络后刷新音源。'
+          : '音频加载失败，请刷新音源后重试。'
+      setPlaying(false)
+      setAudioError(message)
+    }
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
     audio.addEventListener('durationchange', onLoadedMetadata)
     audio.addEventListener('timeupdate', syncCurrentTime)
@@ -68,18 +79,29 @@ export function GlobalAudio() {
       audio.removeEventListener('ended', handleEnded)
       audio.removeEventListener('error', handleError)
     }
-  }, [onLoadedMetadata, setPlaying, syncCurrentTime])
+  }, [onLoadedMetadata, setAudioError, setPlaying, syncCurrentTime])
 
   // Play/pause
   useEffect(() => {
     const audio = audioRef.current
-    if (!audio || !audioSrc) return
+    if (!audio) return
+    if (!audioSrc) {
+      audio.pause()
+      if (isPlaying) setPlaying(false)
+      return
+    }
     if (isPlaying) {
-      audio.play().catch(() => setPlaying(false))
+      audio.play().catch((error: unknown) => {
+        setPlaying(false)
+        if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'NotAllowedError')) {
+          return
+        }
+        setAudioError('浏览器未能开始播放，请刷新音源后重试。')
+      })
     } else {
       audio.pause()
     }
-  }, [isPlaying, audioSrc, setPlaying])
+  }, [isPlaying, audioSrc, setAudioError, setPlaying])
 
   // Volume
   useEffect(() => {

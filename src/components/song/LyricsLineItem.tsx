@@ -6,6 +6,7 @@ import { KTVLine } from './KTVLine'
 import { RomajiEditPanel } from './RomajiEditPanel'
 import type { FuriganaHint, LyricsStageLine, RomajiEditState } from './lyrics-types'
 import type { Song, FuriganaToken } from '../../types'
+import type { FuriganaDisplay } from '../../lib/practice-stages'
 
 interface LyricsLineItemProps {
   song: Song
@@ -23,7 +24,7 @@ interface LyricsLineItemProps {
   isEditingRomaji: boolean
   romajiEdit: RomajiEditState | null
   savedWordIds: Set<string>
-  showFurigana: boolean
+  furiganaDisplay: FuriganaDisplay
   showRomaji: boolean
   showTranslation: boolean
   speakingLineIndex: number | null
@@ -57,7 +58,7 @@ export const LyricsLineItem = memo(function LyricsLineItem({
   isEditingRomaji,
   romajiEdit,
   savedWordIds,
-  showFurigana,
+  furiganaDisplay,
   showRomaji,
   showTranslation,
   speakingLineIndex,
@@ -165,7 +166,7 @@ export const LyricsLineItem = memo(function LyricsLineItem({
           {hasFurigana ? (
             <FuriganaText
               tokens={fLine.words}
-              showFurigana={showFurigana}
+              furiganaDisplay={furiganaDisplay}
               savedWordIds={savedWordIds}
               onWordToggle={async (token) => {
                 const wordId = `${song.neteaseId}:${i}:${token.surface}:${token.reading}`

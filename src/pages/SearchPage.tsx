@@ -21,7 +21,7 @@ export function SearchPage() {
   useEffect(() => {
     listUserSongs().then((userSongs) => {
       const existingIds = new Set(userSongs.map((song) => song.neteaseId))
-      setAddedIds((prev) => new Set([...prev, ...existingIds]))
+      setAddedIds(existingIds)
     })
   }, [])
 
@@ -34,9 +34,8 @@ export function SearchPage() {
       setResults(songs)
       const userSongs = await listUserSongs()
       const existingIds = new Set(userSongs.map((song) => song.neteaseId))
-      const mergedAddedIds = new Set([...addedIds, ...existingIds])
-      setAddedIds(mergedAddedIds)
-      cache.setCache(query, songs, mergedAddedIds)
+      setAddedIds(existingIds)
+      cache.setCache(query, songs, existingIds)
       if (songs.length === 0) setError('没有找到相关歌曲')
     } catch {
       setError('搜索失败，请检查网络连接')
@@ -61,19 +60,13 @@ export function SearchPage() {
     try {
       const existing = await getSongByNeteaseId(song.id)
       if (existing) {
-        setAddedIds((prev) => {
-          const next = new Set(prev).add(song.id)
-          cache.addId(song.id)
-          return next
-        })
+        setAddedIds((prev) => new Set(prev).add(song.id))
+        cache.addId(song.id)
         return
       }
       await createSongFromSearch(song)
-      setAddedIds((prev) => {
-        const next = new Set(prev).add(song.id)
-        cache.addId(song.id)
-        return next
-      })
+      setAddedIds((prev) => new Set(prev).add(song.id))
+      cache.addId(song.id)
     } catch {
       setError('添加歌曲失败')
     } finally {

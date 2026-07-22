@@ -19,6 +19,7 @@ interface PlayerState {
   playbackRate: number
   nowPlaying: NowPlaying | null
   audioSrc: string | undefined
+  audioError: string | null
   setCurrentTime: (ms: number) => void
   setDuration: (ms: number) => void
   setPlaying: (playing: boolean) => void
@@ -30,6 +31,8 @@ interface PlayerState {
   setPlaybackRate: (rate: number) => void
   setNowPlaying: (info: NowPlaying | null) => void
   setAudioSrc: (src: string | undefined) => void
+  setAudioError: (message: string | null) => void
+  resetPlayer: () => void
 }
 
 export const usePlayerStore = create<PlayerState>()((set) => ({
@@ -44,6 +47,7 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   playbackRate: 1,
   nowPlaying: null,
   audioSrc: undefined,
+  audioError: null,
 
   setCurrentTime: (ms) => set({ currentTimeMs: ms }),
   setDuration: (ms) => set({ durationMs: ms }),
@@ -55,5 +59,31 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   setLoopRange: (range) => set({ loopRange: range }),
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
   setNowPlaying: (info) => set({ nowPlaying: info }),
-  setAudioSrc: (src) => set({ audioSrc: src }),
+  setAudioSrc: (src) => set((state) => {
+    if (state.audioSrc === src && src !== undefined) return state
+    return {
+      audioSrc: src,
+      audioError: null,
+      currentTimeMs: 0,
+      durationMs: 0,
+      isPlaying: false,
+      pendingSeekMs: null,
+      playRangeEnd: null,
+      loopRange: null,
+    }
+  }),
+  setAudioError: (message) => set({ audioError: message }),
+  resetPlayer: () => set({
+    currentTimeMs: 0,
+    durationMs: 0,
+    isPlaying: false,
+    vocalEnergy: 0,
+    pendingSeekMs: null,
+    playRangeEnd: null,
+    loopRange: null,
+    playbackRate: 1,
+    nowPlaying: null,
+    audioSrc: undefined,
+    audioError: null,
+  }),
 }))

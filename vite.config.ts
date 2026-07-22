@@ -14,6 +14,13 @@ const kuromojiBrowserFile = path.join(path.dirname(require.resolve('kuromoji')),
 const zlibBrowserFile = path.join(path.dirname(require.resolve('zlibjs')), '..', 'bin', 'zlib.min.js')
 
 function audioProxy(): Plugin {
+  const allowedAudioHost = (hostname: string) => (
+    hostname === 'music.163.com'
+    || hostname.endsWith('.music.163.com')
+    || hostname === 'music.126.net'
+    || hostname.endsWith('.music.126.net')
+  )
+
   return {
     name: 'audio-proxy',
     configureServer(server) {
@@ -25,35 +32,76 @@ function audioProxy(): Plugin {
           return
         }
 
-        res.setHeader('Access-Control-Allow-Origin', '*')
+        const proxyRequest = (sourceUrl: string, redirectCount = 0) => {
+          let parsedUrl: URL
+          try {
+            parsedUrl = new URL(sourceUrl)
+          } catch {
+            res.statusCode = 400
+            res.end('Invalid audio URL')
+            return
+          }
 
-        const parsedUrl = new URL(url)
-        const lib = parsedUrl.protocol === 'https:' ? https : http
+          if (!['http:', 'https:'].includes(parsedUrl.protocol) || !allowedAudioHost(parsedUrl.hostname)) {
+            res.statusCode = 403
+            res.end('Audio host is not allowed')
+            return
+          }
 
-        const proxyReq = lib.get(url, {
-          headers: {
-            'Referer': 'https://music.163.com/',
-            'Accept': '*/*',
-            ...(req.headers.range ? { 'Range': req.headers.range } : {}),
-          },
-        }, (proxyRes) => {
-          if (proxyRes.statusCode === 301 || proxyRes.statusCode === 302) {
-            // Follow redirect manually
+          const lib = parsedUrl.protocol === 'https:' ? https : http
+          const proxyReq = lib.get(parsedUrl, {
+            headers: {
+              Referer: 'https://music.163.com/',
+              Accept: 'audio/*,*/*;q=0.8',
+              'Accept-Encoding': 'identity',
+              ...(req.headers.range ? { Range: req.headers.range } : {}),
+            },
+          }, (proxyRes) => {
+            const redirectCodes = new Set([301, 302, 303, 307, 308])
             const location = proxyRes.headers.location
-            if (location) {
-              res.writeHead(302, { Location: `/api/audio-proxy?url=${encodeURIComponent(location)}` })
-              res.end()
+            if (location && redirectCodes.has(proxyRes.statusCode ?? 0)) {
+              proxyRes.resume()
+              if (redirectCount >= 5) {
+                res.statusCode = 502
+                res.end('Too many audio redirects')
+                return
+              }
+              proxyRequest(new URL(location, parsedUrl).toString(), redirectCount + 1)
               return
             }
-          }
-          res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers)
-          proxyRes.pipe(res)
-        })
 
-        proxyReq.on('error', (err) => {
-          res.statusCode = 502
-          res.end(`Proxy error: ${err.message}`)
-        })
+            const forwardedHeaders = [
+              'accept-ranges',
+              'cache-control',
+              'content-disposition',
+              'content-length',
+              'content-range',
+              'content-type',
+              'etag',
+              'last-modified',
+            ] as const
+            for (const header of forwardedHeaders) {
+              const value = proxyRes.headers[header]
+              if (value !== undefined) res.setHeader(header, value)
+            }
+            res.setHeader('Access-Control-Allow-Origin', '*')
+            res.setHeader('Access-Control-Expose-Headers', 'Accept-Ranges, Content-Length, Content-Range')
+            res.writeHead(proxyRes.statusCode ?? 502)
+            proxyRes.pipe(res)
+          })
+
+          proxyReq.setTimeout(15000, () => proxyReq.destroy(new Error('Audio request timed out')))
+          proxyReq.on('error', (err) => {
+            if (res.headersSent) {
+              res.destroy(err)
+              return
+            }
+            res.statusCode = 502
+            res.end(`Proxy error: ${err.message}`)
+          })
+        }
+
+        proxyRequest(url)
       })
     },
   }

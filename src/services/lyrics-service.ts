@@ -115,7 +115,15 @@ export async function getAnnotatedSong(neteaseId: number, preview = false): Prom
     if (t) translationLines[line.timeMs] = t
   }
 
-  const songUrl = await getSongUrl(neteaseId)
+  // Audio availability must not prevent lyrics practice from opening. Keep a
+  // cached source only when the refresh itself failed, not when the API
+  // explicitly reports that this account cannot play the song.
+  let songUrl: string | null | undefined
+  try {
+    songUrl = await getSongUrl(neteaseId)
+  } catch {
+    songUrl = undefined
+  }
   const base = cached ?? {}
 
   let meta = { title: (base as Song).title ?? '', artist: (base as Song).artist ?? '', album: (base as Song).album, albumArtUrl: (base as Song).albumArtUrl }
@@ -142,8 +150,10 @@ export async function getAnnotatedSong(neteaseId: number, preview = false): Prom
     translationLines,
     translation: parsedLines.map((l) => translationMap.get(l.timeMs) ?? '').join('\n'),
     furiganaVersion: FURIGANA_VERSION,
-    audioUrl: songUrl ?? (base as Song).audioUrl,
-    audioUrlFetchedAt: songUrl ? new Date().toISOString() : (base as Song).audioUrlFetchedAt,
+    audioUrl: songUrl === undefined ? (base as Song).audioUrl : songUrl ?? undefined,
+    audioUrlFetchedAt: songUrl
+      ? new Date().toISOString()
+      : songUrl === undefined ? (base as Song).audioUrlFetchedAt : undefined,
   }
 
   return preview ? song : saveSong(song)
@@ -173,23 +183,23 @@ export async function createSongFromSearch(result: {
 }
 
 export async function ensureAudioUrl(song: Song, force = false): Promise<Song> {
-  if (force || !song.audioUrl || !song.audioUrlFetchedAt) {
-    const url = await getSongUrl(song.neteaseId)
-    if (url && song.id) {
-      await updateAudioUrl(song.id, url)
-      return { ...song, audioUrl: url, audioUrlFetchedAt: new Date().toISOString() }
-    }
-    return song
-  }
-
   const fetchedAt = song.audioUrlFetchedAt ? new Date(song.audioUrlFetchedAt) : null
   const staleMs = 20 * 60 * 1000
-  if (fetchedAt && Date.now() - fetchedAt.getTime() > staleMs) {
+  const shouldRefresh = force
+    || !song.audioUrl
+    || !fetchedAt
+    || Number.isNaN(fetchedAt.getTime())
+    || Date.now() - fetchedAt.getTime() > staleMs
+
+  if (shouldRefresh) {
     const url = await getSongUrl(song.neteaseId)
-    if (url && song.id) {
-      await updateAudioUrl(song.id, url)
+    if (song.id) {
+      await updateAudioUrl(song.id, url ?? undefined)
+    }
+    if (url) {
       return { ...song, audioUrl: url, audioUrlFetchedAt: new Date().toISOString() }
     }
+    return { ...song, audioUrl: undefined, audioUrlFetchedAt: undefined }
   }
 
   return song

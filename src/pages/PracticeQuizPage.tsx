@@ -1,31 +1,20 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { getAnnotatedSong } from '../services/lyrics-service'
-import { buildQuizSession } from '../services/quiz-service'
+import { buildQuizSession, parseQuizType } from '../services/quiz-service'
 import { updateLyrics, updateFuriganaToken } from '../services/song-service'
 import { QuizCard } from '../components/practice/QuizCard'
 import { QuizProgress } from '../components/practice/QuizProgress'
 import { QuizCorrection } from '../components/practice/QuizCorrection'
 import type { Song } from '../types'
 import type { QuizSession, QuizType } from '../services/quiz-service'
-
-function useQuizSpeech() {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  return useCallback((text: string) => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-    }
-    const audio = new Audio(`/api/tts?q=${encodeURIComponent(text)}&spd=2`)
-    audioRef.current = audio
-    audio.play().catch(() => {})
-  }, [])
-}
+import { useSpeech } from '../hooks/useSpeech'
 
 export function PracticeQuizPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const neteaseId = id ? parseInt(id, 10) : null
-  const quizType = (searchParams.get('type') as QuizType) || 'romaji'
+  const quizType = parseQuizType(searchParams.get('type'))
 
   const [song, setSong] = useState<Song | null>(null)
   const [session, setSession] = useState<QuizSession | null>(null)
@@ -33,22 +22,71 @@ export function PracticeQuizPage() {
   const [showResult, setShowResult] = useState(false)
   const [isFinished, setIsFinished] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const speak = useQuizSpeech()
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const { speak } = useSpeech()
 
   useEffect(() => {
-    if (!neteaseId || Number.isNaN(neteaseId)) return
-    getAnnotatedSong(neteaseId).then((s) => {
-      setSong(s)
-      setSession(buildQuizSession(s, quizType))
-      setIsLoading(false)
+    let cancelled = false
+    clearTimeout(advanceTimerRef.current)
+
+    Promise.resolve().then(() => {
+      if (cancelled) return
+      setSong(null)
+      setSession(null)
+      setSelectedAnswer(null)
+      setShowResult(false)
+      setIsFinished(false)
+      setLoadError(null)
+
+      if (!neteaseId || Number.isNaN(neteaseId)) {
+        setIsLoading(false)
+        setLoadError('无效的歌曲 ID')
+        return
+      }
+
+      setIsLoading(true)
+      getAnnotatedSong(neteaseId)
+        .then((loadedSong) => {
+          if (cancelled) return
+          setSong(loadedSong)
+          setSession(buildQuizSession(loadedSong, quizType))
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) setLoadError(error instanceof Error ? error.message : '练习加载失败')
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoading(false)
+        })
     })
+
+    return () => {
+      cancelled = true
+      clearTimeout(advanceTimerRef.current)
+    }
   }, [neteaseId, quizType])
 
-  if (isLoading || !song || !session) {
+  if (isLoading) {
     return (
       <div className="page-shell px-4 py-6">
         <div className="learning-panel flex justify-center py-20">
           <div className="w-10 h-10 border-3 border-accent border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    )
+  }
+
+  if (loadError || !song || !session) {
+    return (
+      <div className="page-shell px-4 py-6">
+        <div className="learning-panel px-5 py-12 text-center">
+          <p className="font-semibold text-text">练习暂时打不开</p>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-text-secondary">
+            {loadError ?? '歌曲数据不完整，请先返回歌词页重新准备。'}
+          </p>
+          <Link to="/practice" className="mt-5 inline-flex rounded-lg bg-accent px-6 py-2.5 font-semibold text-white">
+            返回选择
+          </Link>
         </div>
       </div>
     )
@@ -131,7 +169,20 @@ export function PracticeQuizPage() {
     )
   }
 
+  const advance = () => {
+    if (!session) return
+    const next = session.currentIndex + 1
+    if (next >= session.questions.length) {
+      setIsFinished(true)
+    } else {
+      setSession((prev) => prev ? { ...prev, currentIndex: prev.currentIndex + 1 } : prev)
+    }
+    setSelectedAnswer(null)
+    setShowResult(false)
+  }
+
   const handleAnswer = (index: number) => {
+    if (showResult) return
     setSelectedAnswer(index)
     setShowResult(true)
 
@@ -147,22 +198,9 @@ export function PracticeQuizPage() {
     )
 
     if (isCorrect) {
-      setTimeout(() => advance(), 800)
+      clearTimeout(advanceTimerRef.current)
+      advanceTimerRef.current = setTimeout(advance, 800)
     }
-  }
-
-  const advance = () => {
-    setSession((prev) => {
-      if (!prev) return prev
-      const next = prev.currentIndex + 1
-      if (next >= prev.questions.length) {
-        setIsFinished(true)
-        return prev
-      }
-      return { ...prev, currentIndex: next }
-    })
-    setSelectedAnswer(null)
-    setShowResult(false)
   }
 
   const handleCorrection = async (value: string) => {

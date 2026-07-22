@@ -4,6 +4,11 @@ import type { Song } from '../types'
 
 export type QuizType = 'romaji' | 'furigana' | 'translation' | 'pronunciation'
 
+export function parseQuizType(value: string | null): QuizType {
+  if (value === 'furigana' || value === 'translation' || value === 'pronunciation') return value
+  return 'romaji'
+}
+
 export interface QuizQuestion {
   type: QuizType
   lineIndex: number

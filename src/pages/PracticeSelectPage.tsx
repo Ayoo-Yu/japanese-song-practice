@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { listUserSongs } from '../services/song-service'
 import type { Song } from '../types'
-import type { QuizType } from '../services/quiz-service'
+import { parseQuizType, type QuizType } from '../services/quiz-service'
 
 const quizModes: Array<{ type: QuizType; title: string; description: string }> = [
   { type: 'romaji', title: '罗马音跟读', description: '适合刚开始开口唱' },
@@ -14,7 +14,7 @@ const quizModes: Array<{ type: QuizType; title: string; description: string }> =
 export function PracticeSelectPage() {
   const [songs, setSongs] = useState<Song[]>([])
   const [searchParams, setSearchParams] = useSearchParams()
-  const quizType = (searchParams.get('type') as QuizType) || 'romaji'
+  const quizType = parseQuizType(searchParams.get('type'))
 
   useEffect(() => {
     listUserSongs().then(setSongs)

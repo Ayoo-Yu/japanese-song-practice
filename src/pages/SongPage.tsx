@@ -16,7 +16,8 @@ import { extractColorsCached } from '../lib/color-extract'
 import type { ExtractedColors } from '../lib/color-extract'
 import { isCreditLineText } from '../lib/song-lines'
 import { listSavedLines, listSavedWords, toggleSavedLine } from '../services/collections-service'
-import type { Song } from '../types'
+import type { PracticeStage, Song } from '../types'
+import { getPracticeStageConfig } from '../lib/practice-stages'
 
 export function SongPage() {
   const { id } = useParams<{ id: string }>()
@@ -47,6 +48,7 @@ export function SongPage() {
   void _vocalEnergy
   const audioSrc = usePlayerStore((s) => s.audioSrc)
   const setAudioSrc = usePlayerStore((s) => s.setAudioSrc)
+  const setAudioError = usePlayerStore((s) => s.setAudioError)
   const [isRetryingAudio, setIsRetryingAudio] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editSong, setEditSong] = useState<Song | null>(null)
@@ -55,11 +57,14 @@ export function SongPage() {
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const prevLineRef = useRef(-1)
   const handledFocusLineRef = useRef<string | null>(null)
+  const audioSongIdRef = useRef<number | null>(null)
 
+  const [currentStage, setCurrentStage] = useState<PracticeStage>(1)
+  const [displayCustomized, setDisplayCustomized] = useState(false)
   const [showFurigana, setShowFurigana] = useState(true)
   const [showRomaji, setShowRomaji] = useState(true)
   const [showTranslation, setShowTranslation] = useState(true)
-  const [showKTV, setShowKTV] = useState(true)
+  const [showKTV, setShowKTV] = useState(false)
   const [loopLineIndex, setLoopLineIndex] = useState<number | null>(null)
   const [savedWordIds, setSavedWordIds] = useState<Set<string>>(new Set())
   const [savedLineIds, setSavedLineIds] = useState<Set<string>>(new Set())
@@ -111,10 +116,31 @@ export function SongPage() {
   }, [song, setNowPlaying])
 
   useEffect(() => {
-    if (song) {
-      ensureAudioUrl(song).then((s) => setAudioSrc(s.audioUrl))
+    if (!song) return
+
+    let cancelled = false
+    const songChanged = audioSongIdRef.current !== song.neteaseId
+    if (songChanged) {
+      audioSongIdRef.current = song.neteaseId
+      setPlaying(false)
+      setAudioSrc(undefined)
+      setAudioError(null)
     }
-  }, [song, setAudioSrc])
+
+    ensureAudioUrl(song)
+      .then((resolvedSong) => {
+        if (cancelled) return
+        setAudioSrc(resolvedSong.audioUrl)
+        if (!resolvedSong.audioUrl) setAudioError(AUDIO_UNAVAILABLE_MESSAGE)
+      })
+      .catch(() => {
+        if (cancelled) return
+        if (songChanged) setAudioSrc(undefined)
+        setAudioError('获取音源失败，请检查网络后重试。')
+      })
+
+    return () => { cancelled = true }
+  }, [song, setAudioError, setAudioSrc, setPlaying])
 
   useEffect(() => {
     let cancelled = false
@@ -126,13 +152,19 @@ export function SongPage() {
     return () => { cancelled = true }
   }, [song?.neteaseId, setLoopRange])
 
-  const handleRetryAudio = () => {
+  const handleRetryAudio = async () => {
     if (!song) return
     setIsRetryingAudio(true)
-    ensureAudioUrl(song, true).then((s) => {
-      setAudioSrc(s.audioUrl)
+    setAudioError(null)
+    try {
+      const resolvedSong = await ensureAudioUrl(song, true)
+      setAudioSrc(resolvedSong.audioUrl)
+      if (!resolvedSong.audioUrl) setAudioError(AUDIO_UNAVAILABLE_MESSAGE)
+    } catch {
+      setAudioError('刷新音源失败，请检查网络或登录状态后重试。')
+    } finally {
       setIsRetryingAudio(false)
-    })
+    }
   }
 
   useEffect(() => {
@@ -180,6 +212,9 @@ export function SongPage() {
 
   const displaySong = isEditing && editSong ? editSong : song
   const lines = useMemo(() => displaySong?.stageLyrics?.[1] ?? [], [displaySong?.stageLyrics])
+  const furiganaDisplay = showFurigana
+    ? (currentStage === 3 ? 'saved' : 'all')
+    : 'none'
   const furiganaData = displaySong?.furiganaData
   const furiganaByIndex = useMemo(
     () => new Map((furiganaData ?? []).map((fl) => [fl.lineIndex, fl])),
@@ -270,6 +305,16 @@ export function SongPage() {
       setIsRegenerating(false)
     }
   }
+
+  const handleStageChange = useCallback((stage: PracticeStage) => {
+    const config = getPracticeStageConfig(stage)
+    setCurrentStage(stage)
+    setShowFurigana(config.furigana !== 'none')
+    setShowRomaji(config.showRomaji)
+    setShowTranslation(config.showTranslation)
+    setShowKTV(config.showKTV)
+    setDisplayCustomized(false)
+  }, [])
 
   const jumpToLineAndPlay = useCallback((lineIndex: number) => {
     const calibration = calibrations[lineIndex]
@@ -448,6 +493,7 @@ export function SongPage() {
           onPlayRequest={handlePlayRequest}
         />
         <SongToolbar
+          currentStage={currentStage}
           showFurigana={showFurigana}
           showRomaji={showRomaji}
           showTranslation={showTranslation}
@@ -457,22 +503,11 @@ export function SongPage() {
           hasAnyMediumConfidence={hasAnyMediumConfidence}
           ignoreAllMediumHints={ignoreAllMediumHints}
           regenerateFeedback={regenerateFeedback}
-          onToggleFurigana={() => setShowFurigana((v) => !v)}
-          onToggleRomaji={() => setShowRomaji((v) => !v)}
-          onToggleTranslation={() => setShowTranslation((v) => !v)}
-          onToggleKTV={() => setShowKTV((v) => !v)}
-          onUseBeginnerPreset={() => {
-            setShowFurigana(true)
-            setShowRomaji(true)
-            setShowTranslation(true)
-            setShowKTV(true)
-          }}
-          onUseChallengePreset={() => {
-            setShowFurigana(false)
-            setShowRomaji(false)
-            setShowTranslation(false)
-            setShowKTV(true)
-          }}
+          onStageChange={handleStageChange}
+          onToggleFurigana={() => { setShowFurigana((v) => !v); setDisplayCustomized(true) }}
+          onToggleRomaji={() => { setShowRomaji((v) => !v); setDisplayCustomized(true) }}
+          onToggleTranslation={() => { setShowTranslation((v) => !v); setDisplayCustomized(true) }}
+          onToggleKTV={() => { setShowKTV((v) => !v); setDisplayCustomized(true) }}
           onRegenerateFurigana={handleRegenerateFurigana}
           onToggleIgnoreMediumHints={async () => {
             const updated = await setIgnoreAllMediumConfidenceHints(song.neteaseId, !ignoreAllMediumHints)
@@ -501,7 +536,7 @@ export function SongPage() {
             <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <span className="font-semibold text-accent">听一句，唱一句</span>
-                <span className="ml-2">{getPracticeModeLabel(showFurigana, showRomaji, showTranslation)}</span>
+                <span className="ml-2">{getPracticeModeLabel(currentStage, displayCustomized)}</span>
               </div>
               <button
                 type="button"
@@ -529,7 +564,7 @@ export function SongPage() {
                   ? '这几行不用跟唱，正式歌词开始后再练。'
                   : currentPracticeLine?.original || '播放歌曲后，这里会显示正在练的歌词。'}
               </p>
-              {currentPracticeLine?.romaji && !currentLineIsCredit && (
+              {showRomaji && currentPracticeLine?.romaji && !currentLineIsCredit && (
                 <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary">{currentPracticeLine.romaji}</p>
               )}
               {currentLineIsCredit && firstSingableLineIndex >= 0 && (
@@ -609,7 +644,7 @@ export function SongPage() {
                 isEditingRomaji={romajiEdit?.lineIndex === i}
                 romajiEdit={romajiEdit}
                 savedWordIds={savedWordIds}
-                showFurigana={showFurigana}
+                furiganaDisplay={furiganaDisplay}
                 showRomaji={showRomaji}
                 showTranslation={showTranslation}
                 speakingLineIndex={speakingLineIndex}
@@ -635,12 +670,12 @@ export function SongPage() {
   )
 }
 
-function getPracticeModeLabel(showFurigana: boolean, showRomaji: boolean, showTranslation: boolean): string {
-  if (showFurigana && showRomaji && showTranslation) return '新手模式'
-  if (!showFurigana && !showRomaji && !showTranslation) return '挑战模式'
-  if (showFurigana || showRomaji) return '读音辅助开启'
-  return '裸读歌词'
+function getPracticeModeLabel(stage: PracticeStage, customized: boolean): string {
+  const config = getPracticeStageConfig(stage)
+  return `${config.value}. ${config.label}${customized ? ' · 自定义显示' : ''}`
 }
+
+const AUDIO_UNAVAILABLE_MESSAGE = '这首歌当前没有可用的完整音源，通常是账号权限、VIP、版权或地区限制。请登录有播放权限的网易云账号后重试。'
 
 function getSongErrorMessage(error: string | null): string {
   if (!error) return '可能是网络、歌词源或本地缓存暂时异常。'

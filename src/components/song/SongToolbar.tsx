@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
+import type { PracticeStage } from '../../types'
+import { StageSelector } from './StageSelector'
 
 interface RegenerateFeedback {
   tone: 'success' | 'error' | 'info'
@@ -7,6 +9,7 @@ interface RegenerateFeedback {
 }
 
 interface SongToolbarProps {
+  currentStage: PracticeStage
   showFurigana: boolean
   showRomaji: boolean
   showTranslation: boolean
@@ -20,14 +23,14 @@ interface SongToolbarProps {
   onToggleRomaji: () => void
   onToggleTranslation: () => void
   onToggleKTV: () => void
-  onUseBeginnerPreset: () => void
-  onUseChallengePreset: () => void
+  onStageChange: (stage: PracticeStage) => void
   onRegenerateFurigana: () => void
   onToggleIgnoreMediumHints: () => void
   onToggleEditing: () => void
 }
 
 export function SongToolbar({
+  currentStage,
   showFurigana,
   showRomaji,
   showTranslation,
@@ -41,8 +44,7 @@ export function SongToolbar({
   onToggleRomaji,
   onToggleTranslation,
   onToggleKTV,
-  onUseBeginnerPreset,
-  onUseChallengePreset,
+  onStageChange,
   onRegenerateFurigana,
   onToggleIgnoreMediumHints,
   onToggleEditing,
@@ -55,20 +57,7 @@ export function SongToolbar({
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="mb-1 text-[11px] font-semibold text-text-muted">练习模式</p>
-          <div className="mb-2 grid grid-cols-2 gap-2">
-            <PresetButton
-              active={showFurigana && showRomaji && showTranslation && showKTV}
-              onClick={onUseBeginnerPreset}
-            >
-              新手
-            </PresetButton>
-            <PresetButton
-              active={!showFurigana && !showRomaji && !showTranslation && showKTV}
-              onClick={onUseChallengePreset}
-            >
-              挑战
-            </PresetButton>
-          </div>
+          <StageSelector currentStage={currentStage} onStageChange={onStageChange} />
         </div>
         <div className="flex shrink-0 gap-2">
           <button
@@ -169,22 +158,6 @@ function TogglePill({ active, onClick, children }: { active: boolean; onClick: (
         active
           ? 'bg-accent text-white border border-accent'
           : 'bg-surface-alt text-text-muted border border-transparent hover:text-text-secondary'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-function PresetButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
-        active
-          ? 'border-accent bg-accent-bg text-accent'
-          : 'border-border bg-surface-alt text-text-secondary hover:border-accent'
       }`}
     >
       {children}

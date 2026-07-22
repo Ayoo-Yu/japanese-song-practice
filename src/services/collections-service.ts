@@ -6,7 +6,9 @@ const LINES_KEY = 'jpsong_saved_lines'
 function load<T>(key: string): T[] {
   try {
     const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) as T[] : []
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed as T[] : []
   } catch {
     return []
   }
@@ -58,4 +60,11 @@ export async function removeSavedWord(id: string): Promise<void> {
 export async function removeSavedLine(id: string): Promise<void> {
   const items = load<SavedLine>(LINES_KEY).filter((item) => item.id !== id)
   save(LINES_KEY, items)
+}
+
+export async function removeSavedItemsForSong(neteaseId: number): Promise<void> {
+  const words = load<SavedWord>(WORDS_KEY).filter((item) => item.neteaseId !== neteaseId)
+  const lines = load<SavedLine>(LINES_KEY).filter((item) => item.neteaseId !== neteaseId)
+  save(WORDS_KEY, words)
+  save(LINES_KEY, lines)
 }
