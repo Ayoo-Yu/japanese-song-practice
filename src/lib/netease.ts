@@ -1,4 +1,5 @@
 import type { NeteaseSearchResponse, NeteaseLyricResponse, NeteaseSongUrlResponse, NeteaseSearchResult } from '../types'
+import { getAllowedAudioUrl } from './proxy-security'
 
 const BASE_URL = '/api/netease'
 
@@ -70,5 +71,13 @@ export async function getSongUrl(neteaseId: number): Promise<string | null> {
   const json: NeteaseSongUrlResponse = await res.json()
   const rawUrl = json.data?.[0]?.url ?? null
   if (!rawUrl) return null
-  return `/api/audio-proxy?url=${encodeURIComponent(rawUrl)}`
+
+  // Railway's outbound IP can be rejected by NetEase's CDN even when the
+  // signed URL is valid. Let the browser fetch the trusted CDN URL directly
+  // over HTTPS so playback uses the listener's own network route.
+  const directUrl = getAllowedAudioUrl(rawUrl)
+  if (!directUrl) return null
+  directUrl.protocol = 'https:'
+  if (directUrl.port === '80') directUrl.port = ''
+  return directUrl.href
 }
