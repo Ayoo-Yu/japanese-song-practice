@@ -8,19 +8,19 @@ export function useAnnotatedSong(neteaseId: number | null, preview = false) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!neteaseId) return
-
     let cancelled = false
-    Promise.resolve().then(() => {
-      if (!cancelled) {
-        setIsLoading(true)
-        setError(null)
-      }
-    })
 
-    getAnnotatedSong(neteaseId, preview)
+    Promise.resolve()
+      .then(() => {
+        if (cancelled) return null
+        setSong(null)
+        setIsLoading(!!neteaseId)
+        setError(null)
+        if (!neteaseId) return null
+        return getAnnotatedSong(neteaseId, preview)
+      })
       .then((result) => {
-        if (!cancelled) setSong(result)
+        if (!cancelled && result) setSong(result)
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load song')

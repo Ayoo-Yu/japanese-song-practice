@@ -2,7 +2,7 @@ import type { Song, FuriganaLine, FuriganaToken } from '../types'
 import { computeFuriganaForLine, FURIGANA_VERSION } from '../lib/furigana-service'
 import { shouldAnnotateJapaneseLyrics } from '../lib/lyrics-language'
 import { buildStageLyrics } from './lyrics-service'
-import { removeCollectionsForSong } from './collections-service'
+import { removeSavedItemsForSong } from './collections-service'
 import { removeSongLearningData } from './learning-service'
 
 export const SONGS_STORAGE_KEY = 'jpsong_songs'
@@ -10,7 +10,9 @@ export const SONGS_STORAGE_KEY = 'jpsong_songs'
 function loadAll(): Song[] {
   try {
     const raw = localStorage.getItem(SONGS_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed as Song[] : []
   } catch {
     return []
   }
@@ -25,7 +27,8 @@ function saveAll(songs: Song[]): void {
 }
 
 function generateId(): string {
-  return crypto.randomUUID()
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 export async function getSongByNeteaseId(neteaseId: number): Promise<Song | null> {
@@ -68,11 +71,15 @@ export async function ensureSongPersisted(song: Song): Promise<Song> {
   return saveSong(song)
 }
 
-export async function updateAudioUrl(id: string, audioUrl: string): Promise<void> {
+export async function updateAudioUrl(id: string, audioUrl?: string): Promise<void> {
   const songs = loadAll()
   const idx = songs.findIndex((s) => s.id === id)
   if (idx >= 0) {
-    songs[idx] = { ...songs[idx], audioUrl, audioUrlFetchedAt: new Date().toISOString() }
+    songs[idx] = {
+      ...songs[idx],
+      audioUrl,
+      audioUrlFetchedAt: audioUrl ? new Date().toISOString() : undefined,
+    }
     saveAll(songs)
   }
 }
@@ -81,15 +88,15 @@ export async function listUserSongs(): Promise<Song[]> {
   return loadAll()
 }
 
-export async function deleteSong(id: string): Promise<void> {
-  const currentSongs = loadAll()
-  const removed = currentSongs.find((song) => song.id === id)
-  const songs = currentSongs.filter((s) => s.id !== id)
-  saveAll(songs)
-  if (removed) {
-    removeCollectionsForSong(removed.neteaseId)
-    removeSongLearningData(removed.neteaseId)
-  }
+export async function deleteSong(id: string): Promise<boolean> {
+  const songs = loadAll()
+  const target = songs.find((song) => song.id === id)
+  if (!target) return false
+
+  saveAll(songs.filter((song) => song.id !== id))
+  await removeSavedItemsForSong(target.neteaseId)
+  removeSongLearningData(target.neteaseId)
+  return true
 }
 
 export async function updateLyrics(

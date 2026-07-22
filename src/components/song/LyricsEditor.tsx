@@ -147,7 +147,7 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
   }
 
   return (
-    <div className="rounded-2xl bg-surface/88 p-3 shadow-[0_10px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm">
+    <div className="rounded-lg bg-surface/88 p-3 shadow-[0_10px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm">
       <div className="space-y-2">
       {lines.map((line, i) => {
         if (!line.original.trim() && !line.romaji && !line.translation) {

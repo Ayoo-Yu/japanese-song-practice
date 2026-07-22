@@ -1,7 +1,13 @@
 import { generateDistractors } from '../lib/distractors'
+import { isCreditLineText } from '../lib/song-lines'
 import type { Song } from '../types'
 
 export type QuizType = 'romaji' | 'furigana' | 'translation' | 'pronunciation'
+
+export function parseQuizType(value: string | null): QuizType {
+  if (value === 'furigana' || value === 'translation' || value === 'pronunciation') return value
+  return 'romaji'
+}
 
 export interface QuizQuestion {
   type: QuizType
@@ -33,7 +39,12 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-export function isTrustedFuriganaToken(token: { isKanji: boolean; reading: string; confidence?: string; source?: string }): boolean {
+export function isTrustedFuriganaToken(token: {
+  isKanji: boolean
+  reading: string
+  confidence?: string
+  source?: string
+}): boolean {
   return token.isKanji && !!token.reading && (
     token.confidence === 'high' || token.source === 'user_confirmed'
   )
@@ -50,6 +61,8 @@ function isTrustedRomajiLine(song: Song, lineIndex: number): boolean {
 export function extractFuriganaPool(song: Song): string[] {
   const readings: string[] = []
   for (const fl of song.furiganaData ?? []) {
+    const sourceLine = song.lrcParsed?.[fl.lineIndex]
+    if (sourceLine && isCreditLineText(sourceLine.text)) continue
     for (const w of fl.words) {
       if (isTrustedFuriganaToken(w)) readings.push(w.reading)
     }
@@ -58,11 +71,17 @@ export function extractFuriganaPool(song: Song): string[] {
 }
 
 export function extractRomajiPool(song: Song): string[] {
-  return Object.values(song.romajiLines ?? {}).filter((r) => r.trim().length > 0)
+  return (song.lrcParsed ?? [])
+    .filter((line) => !isCreditLineText(line.text))
+    .map((line) => song.romajiLines?.[line.timeMs] ?? '')
+    .filter((r) => r.trim().length > 0)
 }
 
 export function extractTranslationPool(song: Song): string[] {
-  return Object.values(song.translationLines ?? {}).filter((t) => t.trim().length > 0)
+  return (song.lrcParsed ?? [])
+    .filter((line) => !isCreditLineText(line.text))
+    .map((line) => song.translationLines?.[line.timeMs] ?? '')
+    .filter((t) => t.trim().length > 0)
 }
 
 function buildRomajiQuestion(
@@ -71,7 +90,7 @@ function buildRomajiQuestion(
   distractorPool: string[],
 ): QuizQuestion | null {
   const line = song.lrcParsed?.[lineIndex]
-  if (!line || !line.text.trim()) return null
+  if (!line || !line.text.trim() || isCreditLineText(line.text)) return null
   const romaji = song.romajiLines?.[line.timeMs]
   if (!romaji || !romaji.trim()) return null
 
@@ -96,7 +115,7 @@ function buildFuriganaQuestion(
 ): QuizQuestion | null {
   const line = song.lrcParsed?.[lineIndex]
   const fl = song.furiganaData?.find((f) => f.lineIndex === lineIndex)
-  if (!line || !fl) return null
+  if (!line || !fl || isCreditLineText(line.text)) return null
   const token = fl.words[tokenIdx]
   if (!token || !isTrustedFuriganaToken(token)) return null
 
@@ -121,7 +140,7 @@ function buildTranslationQuestion(
   distractorPool: string[],
 ): QuizQuestion | null {
   const line = song.lrcParsed?.[lineIndex]
-  if (!line || !line.text.trim()) return null
+  if (!line || !line.text.trim() || isCreditLineText(line.text)) return null
   const translation = song.translationLines?.[line.timeMs]
   if (!translation || !translation.trim()) return null
 
@@ -152,7 +171,10 @@ export function buildQuizSession(
         .map((_, i) => i)
         .filter((i) => {
           const line = song.lrcParsed![i]
-          return line.text.trim() && song.romajiLines?.[line.timeMs]?.trim() && isTrustedRomajiLine(song, i)
+          return line.text.trim()
+            && !isCreditLineText(line.text)
+            && song.romajiLines?.[line.timeMs]?.trim()
+            && isTrustedRomajiLine(song, i)
         }),
     )
     for (const i of candidates) {
@@ -170,7 +192,7 @@ export function buildQuizSession(
         .map((_, i) => i)
         .filter((i) => {
           const line = song.lrcParsed![i]
-          return line.text.trim() && song.translationLines?.[line.timeMs]?.trim()
+          return line.text.trim() && !isCreditLineText(line.text) && song.translationLines?.[line.timeMs]?.trim()
         }),
     )
     for (const i of candidates) {
@@ -182,6 +204,8 @@ export function buildQuizSession(
     const pool = extractFuriganaPool(song)
     const candidates: Array<{ lineIdx: number; tokenIdx: number }> = []
     for (const fl of song.furiganaData ?? []) {
+      const line = song.lrcParsed?.[fl.lineIndex]
+      if (line && isCreditLineText(line.text)) continue
       const kanjiTokens = fl.words
         .map((w, ti) => ({ w, ti }))
         .filter(({ w }) => isTrustedFuriganaToken(w))

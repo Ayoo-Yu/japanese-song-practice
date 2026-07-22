@@ -20,6 +20,12 @@ function NavIcon({ name }: { name: string }) {
         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
       </svg>
     ),
+    practice: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 5v14l11-7z" />
+        <path d="M4 5v14" />
+      </svg>
+    ),
     settings: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />
@@ -34,21 +40,22 @@ const links = [
   { to: '/', label: '首页', icon: 'home' },
   { to: '/search', label: '搜索', icon: 'search' },
   { to: '/library', label: '曲库', icon: 'library' },
+  { to: '/practice', label: '练习', icon: 'practice' },
   { to: '/settings', label: '设置', icon: 'settings' },
 ] as const
 
 export function BottomNav() {
   return (
-    <nav className="fixed bottom-0 inset-x-0 bg-surface/95 backdrop-blur-md border-t border-border/60 z-50">
-      <div className="page-shell flex justify-around items-center h-16">
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/70 bg-surface/94 backdrop-blur-md">
+      <div className="page-shell flex h-[4.5rem] items-center justify-around px-1">
         {links.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}
             end={link.to === '/'}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 text-xs transition-all duration-200 ${
-                isActive ? 'text-accent scale-105' : 'text-text-muted hover:text-text-secondary'
+              `flex min-w-[3.65rem] flex-col items-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold transition-all duration-200 ${
+                isActive ? 'bg-accent-bg text-accent' : 'text-text-muted hover:text-text-secondary'
               }`
             }
           >

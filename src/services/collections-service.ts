@@ -6,7 +6,9 @@ export const SAVED_LINES_STORAGE_KEY = 'jpsong_saved_lines'
 function load<T>(key: string): T[] {
   try {
     const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) as T[] : []
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed as T[] : []
   } catch {
     return []
   }
@@ -69,4 +71,8 @@ export function removeCollectionsForSong(neteaseId: number): void {
     SAVED_LINES_STORAGE_KEY,
     load<SavedLine>(SAVED_LINES_STORAGE_KEY).filter((item) => item.neteaseId !== neteaseId),
   )
+}
+
+export async function removeSavedItemsForSong(neteaseId: number): Promise<void> {
+  removeCollectionsForSong(neteaseId)
 }

@@ -25,53 +25,80 @@ function audioProxy(): Plugin {
       }
 
       const value = new URL(req.url ?? '', 'http://localhost').searchParams.get('url')
-      const target = value ? getAllowedAudioUrl(value) : null
-      if (!target) {
+      if (!value) {
         res.statusCode = 400
-        res.end('Audio URL is missing or not allowed')
+        res.end('Missing url param')
         return
       }
 
-      const lib = target.protocol === 'https:' ? https : http
-      const proxyReq = lib.get(target, {
-        headers: {
-          Referer: 'https://music.163.com/',
-          Accept: 'audio/*,*/*;q=0.8',
-          ...(req.headers.range ? { Range: req.headers.range } : {}),
-        },
-      }, (proxyRes) => {
-        if ([301, 302, 307, 308].includes(proxyRes.statusCode ?? 0)) {
-          const redirect = proxyRes.headers.location
-            ? getAllowedAudioUrl(proxyRes.headers.location, target)
-            : null
-          proxyRes.resume()
-          if (!redirect) {
-            res.statusCode = 502
-            res.end('Upstream redirect was not allowed')
+      const initialTarget = getAllowedAudioUrl(value)
+      if (!initialTarget) {
+        res.statusCode = 403
+        res.end('Audio host is not allowed')
+        return
+      }
+
+      const proxyRequest = (target: URL, redirectCount = 0) => {
+        const lib = target.protocol === 'https:' ? https : http
+        const proxyReq = lib.get(target, {
+          headers: {
+            Referer: 'https://music.163.com/',
+            Accept: 'audio/*,*/*;q=0.8',
+            'Accept-Encoding': 'identity',
+            ...(req.headers.range ? { Range: req.headers.range } : {}),
+          },
+        }, (proxyRes) => {
+          const redirectCodes = new Set([301, 302, 303, 307, 308])
+          const location = proxyRes.headers.location
+          if (location && redirectCodes.has(proxyRes.statusCode ?? 0)) {
+            proxyRes.resume()
+            if (redirectCount >= 5) {
+              res.statusCode = 502
+              res.end('Too many audio redirects')
+              return
+            }
+            const redirect = getAllowedAudioUrl(location, target)
+            if (!redirect) {
+              res.statusCode = 502
+              res.end('Upstream redirect was not allowed')
+              return
+            }
+            proxyRequest(redirect, redirectCount + 1)
             return
           }
-          res.writeHead(302, {
-            Location: `/api/audio-proxy?url=${encodeURIComponent(redirect.href)}`,
-            'Cache-Control': 'no-store',
-          })
-          res.end()
-          return
-        }
 
-        const headers = { ...proxyRes.headers }
-        delete headers['set-cookie']
-        delete headers['access-control-allow-origin']
-        delete headers.location
-        res.writeHead(proxyRes.statusCode ?? 502, headers)
-        proxyRes.pipe(res)
-      })
+          const forwardedHeaders = [
+            'accept-ranges',
+            'cache-control',
+            'content-disposition',
+            'content-length',
+            'content-range',
+            'content-type',
+            'etag',
+            'last-modified',
+          ] as const
+          for (const header of forwardedHeaders) {
+            const headerValue = proxyRes.headers[header]
+            if (headerValue !== undefined) res.setHeader(header, headerValue)
+          }
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Expose-Headers', 'Accept-Ranges, Content-Length, Content-Range')
+          res.writeHead(proxyRes.statusCode ?? 502)
+          proxyRes.pipe(res)
+        })
 
-      proxyReq.setTimeout(15_000, () => proxyReq.destroy(new Error('Upstream audio request timed out')))
-      proxyReq.on('error', (error) => {
-        if (res.headersSent) return
-        res.statusCode = 502
-        res.end(`Audio proxy error: ${error.message}`)
-      })
+        proxyReq.setTimeout(15_000, () => proxyReq.destroy(new Error('Upstream audio request timed out')))
+        proxyReq.on('error', (error) => {
+          if (res.headersSent) {
+            res.destroy(error)
+            return
+          }
+          res.statusCode = 502
+          res.end(`Audio proxy error: ${error.message}`)
+        })
+      }
+
+      proxyRequest(initialTarget)
     })
   }
 
