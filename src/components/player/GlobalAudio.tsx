@@ -4,6 +4,7 @@ import { getAudioUrlCandidates } from '../../lib/proxy-security'
 
 export function GlobalAudio() {
   const audioRef = useRef<HTMLAudioElement>(null)
+  const failedAudioUrlsRef = useRef<Set<string>>(new Set())
   const audioSrc = usePlayerStore((s) => s.audioSrc)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const volume = usePlayerStore((s) => s.volume)
@@ -51,6 +52,10 @@ export function GlobalAudio() {
     return () => cancelAnimationFrame(frameId)
   }, [isPlaying, syncCurrentTime])
 
+  useEffect(() => {
+    failedAudioUrlsRef.current = new Set()
+  }, [audioSrc])
+
   // Audio events
   useEffect(() => {
     const audio = audioRef.current
@@ -59,9 +64,9 @@ export function GlobalAudio() {
     const handleError = () => {
       const candidates = audioSrc ? getAudioUrlCandidates(audioSrc) : []
       const currentSrc = audio.currentSrc || audio.src
-      const currentIndex = candidates.indexOf(currentSrc)
-      const fallbackUrl = candidates[currentIndex >= 0 ? currentIndex + 1 : 0]
-      if (fallbackUrl && fallbackUrl !== currentSrc) {
+      failedAudioUrlsRef.current.add(currentSrc)
+      const fallbackUrl = candidates.find((candidate) => !failedAudioUrlsRef.current.has(candidate))
+      if (fallbackUrl) {
         audio.src = fallbackUrl
         audio.load()
         if (usePlayerStore.getState().isPlaying) {
