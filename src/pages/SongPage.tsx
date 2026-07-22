@@ -11,7 +11,7 @@ import { SongToolbar } from '../components/song/SongToolbar'
 import { usePlayerStore } from '../stores/player-store'
 import { useUIStore } from '../stores/ui-store'
 import { ensureAudioUrl } from '../services/lyrics-service'
-import { ensureSongPersisted, regenerateFurigana, setIgnoreAllMediumConfidenceHints } from '../services/song-service'
+import { ensureSongPersisted, regenerateFurigana, saveLyricsOffset, setIgnoreAllMediumConfidenceHints } from '../services/song-service'
 import { extractColorsCached } from '../lib/color-extract'
 import type { ExtractedColors } from '../lib/color-extract'
 import { isCreditLineText } from '../lib/song-lines'
@@ -19,6 +19,13 @@ import { listSavedLines, listSavedWords, toggleSavedLine } from '../services/col
 import { getSongLearningProgress, setSongLearningStage } from '../services/learning-service'
 import type { PracticeStage, Song } from '../types'
 import { getPracticeStageConfig } from '../lib/practice-stages'
+import {
+  clampLyricsOffsetMs,
+  findCurrentLine,
+  getLineProgress,
+  getLineStartMs,
+  getLineWindow,
+} from '../lib/lyrics-timing'
 
 export function SongPage() {
   const { id } = useParams<{ id: string }>()
@@ -204,7 +211,12 @@ export function SongPage() {
   useEffect(() => {
     if (!isPlaying || userScrollingRef.current) return
     if (!song) return
-    const currentLineIndex = findCurrentLine(song.lrcParsed ?? [], currentTimeMs, song.calibrations ?? {})
+    const currentLineIndex = findCurrentLine(
+      song.lrcParsed ?? [],
+      currentTimeMs,
+      song.calibrations ?? {},
+      song.lyricsOffsetMs,
+    )
     if (currentLineIndex === prevLineRef.current) return
     prevLineRef.current = currentLineIndex
     if (currentLineIndex < 0) return
@@ -224,6 +236,7 @@ export function SongPage() {
   )
   const parsedLines = useMemo(() => song?.lrcParsed ?? [], [song?.lrcParsed])
   const calibrations = useMemo(() => song?.calibrations ?? {}, [song?.calibrations])
+  const lyricsOffsetMs = song?.lyricsOffsetMs ?? 0
   const ignoreAllMediumHints = !!displaySong?.ignoreAllMediumConfidenceHints
   const ignoredMediumLineIndexes = useMemo(
     () => new Set(displaySong?.ignoredMediumConfidenceLineIndexes ?? []),
@@ -233,7 +246,7 @@ export function SongPage() {
     () => (furiganaData ?? []).some((line) => line.words.some((word) => word.confidence === 'medium')),
     [furiganaData],
   )
-  const currentLineIndex = findCurrentLine(parsedLines, currentTimeMs, calibrations)
+  const currentLineIndex = findCurrentLine(parsedLines, currentTimeMs, calibrations, lyricsOffsetMs)
   const currentPracticeLine = currentLineIndex >= 0 ? lines[currentLineIndex] : undefined
   const currentLineIsCredit = !!currentPracticeLine && isCreditLineText(currentPracticeLine.original)
   const currentPracticeLineId = currentLineIndex >= 0 ? `${song?.neteaseId ?? 'song'}:${currentLineIndex}` : ''
@@ -251,7 +264,7 @@ export function SongPage() {
     if (handledFocusLineRef.current === signature) return
 
     const calibration = calibrations[focusLineIndex]
-    const startMs = calibration?.startMs ?? parsedLines[focusLineIndex]?.timeMs
+    const startMs = getLineStartMs(parsedLines, focusLineIndex, calibration, lyricsOffsetMs)
     if (startMs === undefined) return
 
     handledFocusLineRef.current = signature
@@ -272,7 +285,7 @@ export function SongPage() {
       })
     })
     return () => { cancelled = true }
-  }, [calibrations, focusLineIndex, parsedLines, setLoopRange, setPendingSeek, setPlayRangeEnd, song])
+  }, [calibrations, focusLineIndex, lyricsOffsetMs, parsedLines, setLoopRange, setPendingSeek, setPlayRangeEnd, song])
 
   const handleRegenerateFurigana = async () => {
     if (!song) return
@@ -308,6 +321,37 @@ export function SongPage() {
     }
   }
 
+  const handleTimingOffsetChange = useCallback(async (value: number) => {
+    if (!song) return
+
+    const nextOffset = clampLyricsOffsetMs(value)
+    const optimisticSong = { ...song, lyricsOffsetMs: nextOffset }
+    setSong(optimisticSong)
+    if (isEditing) {
+      setEditSong((current) => current ? { ...current, lyricsOffsetMs: nextOffset } : current)
+    }
+    setRegenerateFeedback({ tone: 'info', text: '正在保存整首歌词的时间校准…' })
+
+    try {
+      const persistedSong = isPreview
+        ? await ensureSongPersisted(optimisticSong)
+        : optimisticSong
+      const updated = await saveLyricsOffset(persistedSong.neteaseId, nextOffset)
+      if (!updated) throw new Error('歌曲尚未保存到曲库')
+
+      setSong(updated)
+      if (isEditing) setEditSong(updated)
+      const direction = nextOffset > 0 ? '延后' : nextOffset < 0 ? '提前' : '恢复到原始时间'
+      const amount = nextOffset === 0 ? '' : ` ${(Math.abs(nextOffset) / 1000).toFixed(1)} 秒`
+      setRegenerateFeedback({ tone: 'success', text: `整首歌词已${direction}${amount}。` })
+    } catch (error) {
+      setRegenerateFeedback({
+        tone: 'error',
+        text: error instanceof Error ? `时间校准保存失败：${error.message}` : '时间校准保存失败。',
+      })
+    }
+  }, [isEditing, isPreview, setSong, song])
+
   const handleStageChange = useCallback((stage: PracticeStage) => {
     const config = getPracticeStageConfig(stage)
     setCurrentStage(stage)
@@ -338,7 +382,7 @@ export function SongPage() {
 
   const jumpToLineAndPlay = useCallback((lineIndex: number) => {
     const calibration = calibrations[lineIndex]
-    const startMs = calibration?.startMs ?? parsedLines[lineIndex]?.timeMs
+    const startMs = getLineStartMs(parsedLines, lineIndex, calibration, lyricsOffsetMs)
     if (startMs === undefined) return
 
     setPlaying(false)
@@ -349,13 +393,13 @@ export function SongPage() {
       setPendingSeek(startMs)
       setPlaying(true)
     }, 50)
-  }, [calibrations, parsedLines, setLoopRange, setPendingSeek, setPlayRangeEnd, setPlaying])
+  }, [calibrations, lyricsOffsetMs, parsedLines, setLoopRange, setPendingSeek, setPlayRangeEnd, setPlaying])
 
   const startCurrentLineLoop = useCallback((slow = false) => {
     if (currentLineIndex < 0) return
 
     const calibration = calibrations[currentLineIndex]
-    const { start, end } = getLineWindow(parsedLines, currentLineIndex, calibration)
+    const { start, end } = getLineWindow(parsedLines, currentLineIndex, calibration, lyricsOffsetMs)
     if (end <= start) return
     if (slow) setPlaybackRate(0.75)
     setLoopLineIndex(currentLineIndex)
@@ -366,6 +410,7 @@ export function SongPage() {
   }, [
     calibrations,
     currentLineIndex,
+    lyricsOffsetMs,
     parsedLines,
     setLoopRange,
     setPlaybackRate,
@@ -522,12 +567,14 @@ export function SongPage() {
           isEditing={isEditing}
           hasAnyMediumConfidence={hasAnyMediumConfidence}
           ignoreAllMediumHints={ignoreAllMediumHints}
+          timingOffsetMs={lyricsOffsetMs}
           regenerateFeedback={regenerateFeedback}
           onStageChange={handleStageChange}
           onToggleFurigana={() => { setShowFurigana((v) => !v); setDisplayCustomized(true) }}
           onToggleRomaji={() => { setShowRomaji((v) => !v); setDisplayCustomized(true) }}
           onToggleTranslation={() => { setShowTranslation((v) => !v); setDisplayCustomized(true) }}
           onToggleKTV={() => { setShowKTV((v) => !v); setDisplayCustomized(true) }}
+          onTimingOffsetChange={(value) => { void handleTimingOffsetChange(value) }}
           onRegenerateFurigana={handleRegenerateFurigana}
           onToggleIgnoreMediumHints={async () => {
             const updated = await setIgnoreAllMediumConfidenceHints(song.neteaseId, !ignoreAllMediumHints)
@@ -551,7 +598,7 @@ export function SongPage() {
           onSongUpdate={setEditSong}
         />
       ) : (
-        <div className="px-3 pt-4">
+        <div className={`px-3 pt-4 ${showKTV ? 'ktv-mode' : ''}`}>
           <div className="mb-3 rounded-lg border border-border/60 bg-surface/80 px-3 py-2 text-xs text-text-secondary">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -643,7 +690,7 @@ export function SongPage() {
             const fLine = furiganaByIndex.get(i)
             const isActive = i === currentLineIndex && isPlaying
             const lineProgress = isActive && showKTV
-              ? getLineProgress(parsedLines, i, currentTimeMs, calibrations[i])
+              ? getLineProgress(parsedLines, i, currentTimeMs, calibrations[i], lyricsOffsetMs)
               : 0
             const lineId = `${song.neteaseId}:${i}`
             return (
@@ -706,56 +753,6 @@ function getSongErrorMessage(error: string | null): string {
     return '网络请求失败。可以先重试；如果需要播放受限歌曲，去设置页登录音乐账号。'
   }
   return error
-}
-
-function getLineProgress(
-  lines: { timeMs: number }[],
-  lineIndex: number,
-  currentTimeMs: number,
-  calibration?: { startMs: number; endMs: number },
-): number {
-  const { start, end } = getLineWindow(lines, lineIndex, calibration)
-  if (end <= start) return currentTimeMs >= start ? 1 : 0
-  const displayTimeMs = getDisplayTimeMs(currentTimeMs, calibration)
-  return Math.max(0, Math.min(1, (displayTimeMs - start) / (end - start)))
-}
-
-function findCurrentLine(
-  lines: { timeMs: number }[],
-  currentTimeMs: number,
-  calibrations: Record<number, { startMs: number; endMs: number }>,
-): number {
-  if (lines.length === 0) return -1
-  let currentLineIndex = -1
-  for (let i = 0; i < lines.length; i++) {
-    const calibration = calibrations[i]
-    const { start } = getLineWindow(lines, i, calibration)
-    const displayTimeMs = getDisplayTimeMs(currentTimeMs, calibration, 100)
-    if (displayTimeMs < start) {
-      break
-    }
-    currentLineIndex = i
-  }
-  return currentLineIndex
-}
-
-function getDisplayTimeMs(
-  currentTimeMs: number,
-  calibration?: { startMs: number; endMs: number },
-  extraLeadMs = 0,
-): number {
-  return currentTimeMs + (calibration ? 0 : 300) + extraLeadMs
-}
-
-function getLineWindow(
-  lines: { timeMs: number }[],
-  lineIndex: number,
-  calibration?: { startMs: number; endMs: number },
-): { start: number; end: number } {
-  const start = calibration?.startMs ?? lines[lineIndex].timeMs
-  const fallbackEnd = lineIndex + 1 < lines.length ? lines[lineIndex + 1].timeMs : start + 5000
-  const end = calibration?.endMs ?? fallbackEnd
-  return { start, end: Math.max(end, start) }
 }
 
 function darkenHex(hex: string, amount: number): string {

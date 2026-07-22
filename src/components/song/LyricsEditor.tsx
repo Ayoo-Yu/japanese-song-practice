@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { ensureSongPersisted, updateLyrics, saveCalibrations } from '../../services/song-service'
 import { usePlayerStore } from '../../stores/player-store'
+import { getLineStartMs, getLineWindow } from '../../lib/lyrics-timing'
 import type { Song } from '../../types'
 
 interface LyricsEditorProps {
@@ -78,15 +79,11 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
   }, [lines, onSongUpdate, parsedLines, romajiLines, song, translationLines])
 
   const openCalibration = (lineIdx: number) => {
-    const line = parsedLines[lineIdx]
-    const nextLine = parsedLines[lineIdx + 1]
     if (!localCalibrations[lineIdx]) {
+      const window = getLineWindow(parsedLines, lineIdx, undefined, song.lyricsOffsetMs)
       setLocalCalibrations({
         ...localCalibrations,
-        [lineIdx]: {
-          startMs: line.timeMs,
-          endMs: nextLine ? nextLine.timeMs : line.timeMs + 5000,
-        },
+        [lineIdx]: { startMs: window.start, endMs: window.end },
       })
     }
     setCalibratingLine(lineIdx)
@@ -128,8 +125,7 @@ export function LyricsEditor({ song, calibrations, onCalibrationsSave, onSongUpd
 
   const jumpToLineAndPlay = (lineIdx: number) => {
     const cal = localCalibrations[lineIdx]
-    const line = parsedLines[lineIdx]
-    const startMs = cal?.startMs ?? line?.timeMs
+    const startMs = getLineStartMs(parsedLines, lineIdx, cal, song.lyricsOffsetMs)
     if (startMs === undefined) return
 
     setPlaying(false)

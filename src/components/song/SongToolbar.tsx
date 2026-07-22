@@ -18,11 +18,13 @@ interface SongToolbarProps {
   isEditing: boolean
   hasAnyMediumConfidence: boolean
   ignoreAllMediumHints: boolean
+  timingOffsetMs: number
   regenerateFeedback: RegenerateFeedback | null
   onToggleFurigana: () => void
   onToggleRomaji: () => void
   onToggleTranslation: () => void
   onToggleKTV: () => void
+  onTimingOffsetChange: (value: number) => void
   onStageChange: (stage: PracticeStage) => void
   onRegenerateFurigana: () => void
   onToggleIgnoreMediumHints: () => void
@@ -39,11 +41,13 @@ export function SongToolbar({
   isEditing,
   hasAnyMediumConfidence,
   ignoreAllMediumHints,
+  timingOffsetMs,
   regenerateFeedback,
   onToggleFurigana,
   onToggleRomaji,
   onToggleTranslation,
   onToggleKTV,
+  onTimingOffsetChange,
   onStageChange,
   onRegenerateFurigana,
   onToggleIgnoreMediumHints,
@@ -108,9 +112,45 @@ export function SongToolbar({
       )}
 
       {showAdvanced && (
-        <div className="rounded-lg border border-border/70 bg-surface/76 p-3">
-          <p className="mb-2 text-[11px] font-semibold text-text-muted">高级校准</p>
-          <div className="flex flex-wrap gap-2">
+        <div className="space-y-3 rounded-lg border border-border/70 bg-surface/76 p-3">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold text-text-muted">整首歌词同步</p>
+              <span className="rounded-full bg-surface-alt px-2.5 py-1 text-[11px] font-semibold tabular-nums text-text-secondary">
+                {formatTimingOffset(timingOffsetMs)}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onTimingOffsetChange(timingOffsetMs - 100)}
+                className="rounded-full border border-border bg-surface-alt px-3 py-1 text-xs font-medium text-text-secondary hover:border-accent"
+              >
+                歌词早 0.1 秒
+              </button>
+              <button
+                type="button"
+                onClick={() => onTimingOffsetChange(timingOffsetMs + 100)}
+                className="rounded-full border border-border bg-surface-alt px-3 py-1 text-xs font-medium text-text-secondary hover:border-accent"
+              >
+                歌词晚 0.1 秒
+              </button>
+              <button
+                type="button"
+                disabled={timingOffsetMs === 0}
+                onClick={() => onTimingOffsetChange(0)}
+                className="rounded-full border border-border bg-surface-alt px-3 py-1 text-xs font-medium text-text-muted hover:border-accent disabled:opacity-40"
+              >
+                重置
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] leading-5 text-text-muted">
+              高光比人声快就点“歌词晚”，比人声慢就点“歌词早”。个别句仍不准时，点“编辑”后校准该句。
+            </p>
+          </div>
+          <div className="border-t border-border/60 pt-3">
+            <p className="mb-2 text-[11px] font-semibold text-text-muted">注音维护</p>
+            <div className="flex flex-wrap gap-2">
             <button
               onClick={onRegenerateFurigana}
               disabled={isRegenerating}
@@ -130,6 +170,7 @@ export function SongToolbar({
                 {ignoreAllMediumHints ? '已忽略中等提示' : '忽略中等提示'}
               </button>
             )}
+            </div>
           </div>
         </div>
       )}
@@ -148,6 +189,11 @@ export function SongToolbar({
       )}
     </div>
   )
+}
+
+function formatTimingOffset(value: number): string {
+  if (value === 0) return '原始时间'
+  return `${value > 0 ? '晚 ' : '早 '}${(Math.abs(value) / 1000).toFixed(1)} 秒`
 }
 
 function TogglePill({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {

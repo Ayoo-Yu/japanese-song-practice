@@ -186,8 +186,12 @@ ruby rt {
 /* KTV mode (stage 5): bigger text, bolder highlight */
 .ktv-mode .lyrics-line {
   font-size: 2rem;
-  line-height: 2.2;
+  line-height: 2.35;
   text-align: center;
+}
+
+.ktv-mode ruby rt {
+  font-size: 0.54em;
 }
 
 .ktv-mode .lyrics-line.active {
@@ -204,7 +208,7 @@ ruby rt {
 }
 
 .ktv-highlight {
-  transition: clip-path 260ms linear;
+  transition: clip-path 50ms linear;
 }
 
 button:focus-visible,

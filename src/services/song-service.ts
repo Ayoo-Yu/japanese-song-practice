@@ -1,5 +1,8 @@
-import type { Song, FuriganaLine, FuriganaToken } from '../types'
+import { toHiragana as wanakanaToHiragana } from 'wanakana'
+import type { Song, FuriganaLine } from '../types'
 import { computeFuriganaForLine, FURIGANA_VERSION } from '../lib/furigana-service'
+import { applyFuriganaOverrides, buildFuriganaTokenId } from '../lib/furigana-overrides'
+import { clampLyricsOffsetMs } from '../lib/lyrics-timing'
 import { shouldAnnotateJapaneseLyrics } from '../lib/lyrics-language'
 import { buildStageLyrics } from './lyrics-service'
 import { removeSavedItemsForSong } from './collections-service'
@@ -136,11 +139,16 @@ export async function updateLyrics(
     }
   }
 
+  const resolvedFuriganaData = applyFuriganaOverrides(
+    furiganaData,
+    song.confirmedFuriganaTokenIds,
+    song.furiganaOverrides,
+  )
   const stageLyrics = await buildStageLyrics(
     lrcParsed,
     romajiMap,
     translationMap,
-    furiganaData,
+    resolvedFuriganaData,
     annotateJapanese,
   )
 
@@ -149,7 +157,7 @@ export async function updateLyrics(
     lrcParsed,
     romajiLines,
     translationLines,
-    furiganaData: applyFuriganaOverrides(furiganaData, song.confirmedFuriganaTokenIds),
+    furiganaData: resolvedFuriganaData,
     stageLyrics,
     furiganaVersion: FURIGANA_VERSION,
   }
@@ -164,6 +172,15 @@ export async function saveCalibrations(
   const song = loadAll().find((s) => s.neteaseId === neteaseId)
   if (!song) return null
   return saveSong({ ...song, calibrations })
+}
+
+export async function saveLyricsOffset(
+  neteaseId: number,
+  lyricsOffsetMs: number,
+): Promise<Song | null> {
+  const song = loadAll().find((s) => s.neteaseId === neteaseId)
+  if (!song) return null
+  return saveSong({ ...song, lyricsOffsetMs: clampLyricsOffsetMs(lyricsOffsetMs) })
 }
 
 export async function regenerateFurigana(
@@ -187,16 +204,21 @@ export async function regenerateFurigana(
     }
   }
 
+  const resolvedFuriganaData = applyFuriganaOverrides(
+    furiganaData,
+    song.confirmedFuriganaTokenIds,
+    song.furiganaOverrides,
+  )
   const stageLyrics = await buildStageLyrics(
     lrcParsed,
     romajiMap,
     translationMap,
-    furiganaData,
+    resolvedFuriganaData,
     annotateJapanese,
   )
   return saveSong({
     ...song,
-    furiganaData: applyFuriganaOverrides(furiganaData, song.confirmedFuriganaTokenIds),
+    furiganaData: resolvedFuriganaData,
     stageLyrics,
     furiganaVersion: FURIGANA_VERSION,
   })
@@ -211,6 +233,9 @@ export async function updateFuriganaToken(
   const song = loadAll().find((s) => s.neteaseId === neteaseId)
   if (!song) return null
 
+  const normalizedReading = wanakanaToHiragana(newReading.trim()).replace(/\s+/g, '')
+  if (!normalizedReading || !/^[\u3040-\u309fー]+$/u.test(normalizedReading)) return null
+
   const furiganaData = (song.furiganaData ?? []).map((fl) => ({
     ...fl,
     words: [...fl.words],
@@ -218,10 +243,23 @@ export async function updateFuriganaToken(
 
   const targetLine = furiganaData.find((fl) => fl.lineIndex === lineIndex)
   if (!targetLine || tokenIndex >= targetLine.words.length) return null
+  if (!targetLine.words[tokenIndex].isKanji) return null
+
+  const tokenId = buildFuriganaTokenId(lineIndex, tokenIndex)
+  const furiganaOverrides = {
+    ...(song.furiganaOverrides ?? {}),
+    [tokenId]: normalizedReading,
+  }
+  const confirmedFuriganaTokenIds = Array.from(new Set([
+    ...(song.confirmedFuriganaTokenIds ?? []),
+    tokenId,
+  ]))
 
   targetLine.words[tokenIndex] = {
     ...targetLine.words[tokenIndex],
-    reading: newReading,
+    reading: normalizedReading,
+    confidence: 'high',
+    source: 'user_confirmed',
   }
 
   const lrcParsed = song.lrcParsed ?? []
@@ -229,7 +267,13 @@ export async function updateFuriganaToken(
   const translationMap = new Map(Object.entries(song.translationLines ?? {}).map(([k, v]) => [Number(k), v]))
   const stageLyrics = await buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
 
-  return saveSong({ ...song, furiganaData, stageLyrics })
+  return saveSong({
+    ...song,
+    furiganaData,
+    stageLyrics,
+    furiganaOverrides,
+    confirmedFuriganaTokenIds,
+  })
 }
 
 export async function confirmFuriganaToken(
@@ -240,13 +284,17 @@ export async function confirmFuriganaToken(
   const song = loadAll().find((s) => s.neteaseId === neteaseId)
   if (!song) return null
 
-  const tokenId = buildConfirmedTokenId(lineIndex, tokenIndex)
+  const tokenId = buildFuriganaTokenId(lineIndex, tokenIndex)
   const confirmedFuriganaTokenIds = Array.from(new Set([
     ...(song.confirmedFuriganaTokenIds ?? []),
     tokenId,
   ]))
 
-  const furiganaData = applyFuriganaOverrides(song.furiganaData ?? [], confirmedFuriganaTokenIds)
+  const furiganaData = applyFuriganaOverrides(
+    song.furiganaData ?? [],
+    confirmedFuriganaTokenIds,
+    song.furiganaOverrides,
+  )
   return saveSong({ ...song, confirmedFuriganaTokenIds, furiganaData })
 }
 
@@ -276,36 +324,4 @@ export async function setIgnoreAllMediumConfidenceHints(
     ...song,
     ignoreAllMediumConfidenceHints: ignored,
   })
-}
-
-function applyFuriganaOverrides(
-  furiganaData: FuriganaLine[],
-  confirmedTokenIds?: string[],
-): FuriganaLine[] {
-  const confirmed = new Set(confirmedTokenIds ?? [])
-  if (confirmed.size === 0) return furiganaData
-
-  return furiganaData.map((line) => ({
-    ...line,
-    words: line.words.map((word, tokenIndex) => applyTokenOverride(word, confirmed, line.lineIndex, tokenIndex)),
-  }))
-}
-
-function applyTokenOverride(
-  word: FuriganaToken,
-  confirmed: Set<string>,
-  lineIndex: number,
-  tokenIndex: number,
-): FuriganaToken {
-  if (!word.isKanji) return word
-  if (!confirmed.has(buildConfirmedTokenId(lineIndex, tokenIndex))) return word
-  return {
-    ...word,
-    confidence: 'high',
-    source: 'user_confirmed',
-  }
-}
-
-function buildConfirmedTokenId(lineIndex: number, tokenIndex: number): string {
-  return `${lineIndex}:${tokenIndex}`
 }

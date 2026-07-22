@@ -52,8 +52,8 @@ export const PRACTICE_STAGES: readonly PracticeStageConfig[] = [
   {
     value: 5,
     label: 'KTV',
-    description: '只显示原文，并按播放进度逐字高亮跟唱。',
-    furigana: 'none',
+    description: '显示原文和平假名注音，并按播放进度高亮跟唱。',
+    furigana: 'all',
     showRomaji: false,
     showTranslation: false,
     showKTV: true,

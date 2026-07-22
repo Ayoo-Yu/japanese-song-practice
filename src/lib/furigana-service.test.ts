@@ -56,6 +56,22 @@ describe('furigana source reconciliation', () => {
     ])
   })
 
+  it('uses the irregular counter reading for one person', () => {
+    const result = computeFuriganaFromSources(
+      'もう１人の僕',
+      'mou hitori no boku',
+      [
+        token('もう', 'モウ'), token('１', '*', { word_type: 'UNKNOWN' }),
+        token('人', 'ニン'), token('の', 'ノ', { pos: '助詞' }), token('僕', 'ボク'),
+      ],
+    )
+
+    expect(result?.filter((item) => item.isKanji).map(({ surface, reading, source }) => ({ surface, reading, source }))).toEqual([
+      { surface: '１人', reading: 'ひとり', source: 'reading_override' },
+      { surface: '僕', reading: 'ぼく', source: 'tokenizer' },
+    ])
+  })
+
   it('keeps romaji at tokenizer word boundaries instead of one kana per syllable', () => {
     const result = computeFuriganaFromSources(
       '夢ならばどれほどよかったでしょう',
