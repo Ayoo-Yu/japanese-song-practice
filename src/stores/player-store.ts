@@ -20,6 +20,7 @@ interface PlayerState {
   nowPlaying: NowPlaying | null
   audioSrc: string | undefined
   audioError: string | null
+  playbackSource: 'audio' | 'bilibili'
   setCurrentTime: (ms: number) => void
   setDuration: (ms: number) => void
   setPlaying: (playing: boolean) => void
@@ -32,6 +33,7 @@ interface PlayerState {
   setNowPlaying: (info: NowPlaying | null) => void
   setAudioSrc: (src: string | undefined) => void
   setAudioError: (message: string | null) => void
+  setPlaybackSource: (source: 'audio' | 'bilibili') => void
   resetPlayer: () => void
 }
 
@@ -48,6 +50,7 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
   nowPlaying: null,
   audioSrc: undefined,
   audioError: null,
+  playbackSource: 'audio',
 
   setCurrentTime: (ms) => set({ currentTimeMs: ms }),
   setDuration: (ms) => set({ durationMs: ms }),
@@ -73,6 +76,7 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
     }
   }),
   setAudioError: (message) => set({ audioError: message }),
+  setPlaybackSource: (source) => set({ playbackSource: source }),
   resetPlayer: () => set({
     currentTimeMs: 0,
     durationMs: 0,
@@ -85,5 +89,6 @@ export const usePlayerStore = create<PlayerState>()((set) => ({
     nowPlaying: null,
     audioSrc: undefined,
     audioError: null,
+    playbackSource: 'audio',
   }),
 }))

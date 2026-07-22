@@ -1,4 +1,12 @@
-export type { Song, StageLine, ParsedLine, FuriganaLine, FuriganaToken, RomajiLine } from './song'
+export type {
+  Song,
+  BilibiliMv,
+  StageLine,
+  ParsedLine,
+  FuriganaLine,
+  FuriganaToken,
+  RomajiLine,
+} from './song'
 export type { SavedWord, SavedLine } from './collections'
 export type {
   PracticeStage,

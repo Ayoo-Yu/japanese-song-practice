@@ -29,6 +29,16 @@ export interface Song {
   ignoredMediumConfidenceLineIndexes?: number[]
   confirmedFuriganaTokenIds?: string[]
   ignoreAllMediumConfidenceHints?: boolean
+  // Optional video chosen by the user for KTV/MV practice.
+  mv?: BilibiliMv
+}
+
+export interface BilibiliMv {
+  provider: 'bilibili'
+  bvid: string
+  page: number
+  sourceUrl: string
+  startAtSeconds?: number
 }
 
 export interface ParsedLine {

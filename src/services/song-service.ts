@@ -1,5 +1,5 @@
 import { toHiragana as wanakanaToHiragana } from 'wanakana'
-import type { Song, FuriganaLine } from '../types'
+import type { BilibiliMv, Song, FuriganaLine } from '../types'
 import { computeFuriganaForLine, FURIGANA_VERSION } from '../lib/furigana-service'
 import { applyFuriganaOverrides, buildFuriganaTokenId } from '../lib/furigana-overrides'
 import { clampLyricsOffsetMs } from '../lib/lyrics-timing'
@@ -181,6 +181,15 @@ export async function saveLyricsOffset(
   const song = loadAll().find((s) => s.neteaseId === neteaseId)
   if (!song) return null
   return saveSong({ ...song, lyricsOffsetMs: clampLyricsOffsetMs(lyricsOffsetMs) })
+}
+
+export async function saveSongMv(
+  neteaseId: number,
+  mv: BilibiliMv | undefined,
+): Promise<Song | null> {
+  const song = loadAll().find((s) => s.neteaseId === neteaseId)
+  if (!song) return null
+  return saveSong({ ...song, mv })
 }
 
 export async function regenerateFurigana(

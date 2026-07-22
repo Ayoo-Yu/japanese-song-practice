@@ -8,16 +8,23 @@ import { LyricsEditor } from '../components/song/LyricsEditor'
 import { LyricsLineItem } from '../components/song/LyricsLineItem'
 import type { FuriganaHint, RomajiEditState } from '../components/song/lyrics-types'
 import { SongToolbar } from '../components/song/SongToolbar'
+import { BilibiliMvDialog, BilibiliMvStage } from '../components/song/BilibiliMv'
 import { usePlayerStore } from '../stores/player-store'
 import { useUIStore } from '../stores/ui-store'
 import { ensureAudioUrl } from '../services/lyrics-service'
-import { ensureSongPersisted, regenerateFurigana, saveLyricsOffset, setIgnoreAllMediumConfidenceHints } from '../services/song-service'
+import {
+  ensureSongPersisted,
+  regenerateFurigana,
+  saveLyricsOffset,
+  saveSongMv,
+  setIgnoreAllMediumConfidenceHints,
+} from '../services/song-service'
 import { extractColorsCached } from '../lib/color-extract'
 import type { ExtractedColors } from '../lib/color-extract'
 import { isCreditLineText } from '../lib/song-lines'
 import { listSavedLines, listSavedWords, toggleSavedLine } from '../services/collections-service'
 import { getSongLearningProgress, setSongLearningStage } from '../services/learning-service'
-import type { PracticeStage, Song } from '../types'
+import type { BilibiliMv, PracticeStage, Song } from '../types'
 import { getPracticeStageConfig } from '../lib/practice-stages'
 import {
   clampLyricsOffsetMs,
@@ -58,7 +65,13 @@ export function SongPage() {
   const audioSrc = usePlayerStore((s) => s.audioSrc)
   const setAudioSrc = usePlayerStore((s) => s.setAudioSrc)
   const setAudioError = usePlayerStore((s) => s.setAudioError)
+  const setPlaybackSource = usePlayerStore((s) => s.setPlaybackSource)
   const [isRetryingAudio, setIsRetryingAudio] = useState(false)
+  const [mvModePreference, setMvModePreference] = useState<{
+    songId: number
+    enabled: boolean
+  } | null>(null)
+  const [isMvDialogOpen, setIsMvDialogOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editSong, setEditSong] = useState<Song | null>(null)
   const lyricsRef = useRef<HTMLDivElement>(null)
@@ -88,6 +101,10 @@ export function SongPage() {
   const [romajiEdit, setRomajiEdit] = useState<RomajiEditState | null>(null)
   const appearance = useUIStore((s) => s.appearance)
   const [albumColors, setAlbumColors] = useState<ExtractedColors | null>(null)
+  const hasMv = !!song?.mv
+  const isMvMode = hasMv && (
+    mvModePreference?.songId === activeSongId ? mvModePreference?.enabled === true : true
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -123,6 +140,22 @@ export function SongPage() {
       })
     }
   }, [song, setNowPlaying])
+
+  useEffect(() => {
+    const source = isMvMode && hasMv ? 'bilibili' : 'audio'
+    setPlaybackSource(source)
+    if (source === 'bilibili') {
+      setPlaying(false)
+      setLoopRange(null)
+      setPlayRangeEnd(null)
+    }
+
+    return () => {
+      if (usePlayerStore.getState().playbackSource === 'bilibili') {
+        usePlayerStore.getState().setPlaybackSource('audio')
+      }
+    }
+  }, [hasMv, isMvMode, setLoopRange, setPlayRangeEnd, setPlaybackSource, setPlaying])
 
   useEffect(() => {
     if (!song) return
@@ -174,6 +207,30 @@ export function SongPage() {
     } finally {
       setIsRetryingAudio(false)
     }
+  }
+
+  const handleSaveMv = async (mv: BilibiliMv) => {
+    if (!song) throw new Error('歌曲还没有加载完成。')
+    const persisted = await ensureSongPersisted(song)
+    const updated = await saveSongMv(persisted.neteaseId, mv)
+    if (!updated) throw new Error('MV 未能保存到这首歌。')
+
+    setSong(updated)
+    if (isEditing) setEditSong(updated)
+    setMvModePreference({ songId: updated.neteaseId, enabled: true })
+    setRegenerateFeedback({ tone: 'success', text: `已为《${updated.title}》指定 B站 MV。` })
+  }
+
+  const handleRemoveMv = async () => {
+    if (!song) throw new Error('歌曲还没有加载完成。')
+    const persisted = await ensureSongPersisted(song)
+    const updated = await saveSongMv(persisted.neteaseId, undefined)
+    if (!updated) throw new Error('MV 指定未能移除。')
+
+    setSong(updated)
+    if (isEditing) setEditSong(updated)
+    setMvModePreference({ songId: updated.neteaseId, enabled: false })
+    setRegenerateFeedback({ tone: 'success', text: '已移除这首歌的 MV 指定，歌曲本身仍保留在曲库。' })
   }
 
   useEffect(() => {
@@ -551,12 +608,28 @@ export function SongPage() {
           albumArtUrl={song.albumArtUrl}
           album={song.album}
         />
-        <AudioPlayer
-          src={audioSrc}
-          onRetry={handleRetryAudio}
-          isRetrying={isRetryingAudio}
-          onPlayRequest={handlePlayRequest}
-        />
+        {isMvMode && song.mv ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#fb7299]/25 bg-[#fb7299]/8 px-3 py-2">
+            <div>
+              <p className="text-sm font-bold text-text">MV 播放模式</p>
+              <p className="text-[11px] leading-5 text-text-secondary">原曲音频已暂停，避免和视频串音。</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMvDialogOpen(true)}
+              className="rounded-full bg-surface px-3 py-1.5 text-xs font-semibold text-[#d94f7c] ring-1 ring-[#fb7299]/20"
+            >
+              MV 设置
+            </button>
+          </div>
+        ) : (
+          <AudioPlayer
+            src={audioSrc}
+            onRetry={handleRetryAudio}
+            isRetrying={isRetryingAudio}
+            onPlayRequest={handlePlayRequest}
+          />
+        )}
         <SongToolbar
           currentStage={currentStage}
           showFurigana={showFurigana}
@@ -568,6 +641,8 @@ export function SongPage() {
           hasAnyMediumConfidence={hasAnyMediumConfidence}
           ignoreAllMediumHints={ignoreAllMediumHints}
           timingOffsetMs={lyricsOffsetMs}
+          hasMv={hasMv}
+          isMvMode={isMvMode}
           regenerateFeedback={regenerateFeedback}
           onStageChange={handleStageChange}
           onToggleFurigana={() => { setShowFurigana((v) => !v); setDisplayCustomized(true) }}
@@ -575,6 +650,13 @@ export function SongPage() {
           onToggleTranslation={() => { setShowTranslation((v) => !v); setDisplayCustomized(true) }}
           onToggleKTV={() => { setShowKTV((v) => !v); setDisplayCustomized(true) }}
           onTimingOffsetChange={(value) => { void handleTimingOffsetChange(value) }}
+          onMvClick={() => {
+            if (!song.mv) {
+              setIsMvDialogOpen(true)
+              return
+            }
+            setMvModePreference({ songId: song.neteaseId, enabled: !isMvMode })
+          }}
           onRegenerateFurigana={handleRegenerateFurigana}
           onToggleIgnoreMediumHints={async () => {
             const updated = await setIgnoreAllMediumConfidenceHints(song.neteaseId, !ignoreAllMediumHints)
@@ -589,6 +671,15 @@ export function SongPage() {
           }}
         />
       </div>
+
+      {isMvMode && song.mv && (
+        <BilibiliMvStage
+          mv={song.mv}
+          songTitle={song.title}
+          onEdit={() => setIsMvDialogOpen(true)}
+          onUseAudio={() => setMvModePreference({ songId: song.neteaseId, enabled: false })}
+        />
+      )}
 
       {isEditing && editSong ? (
         <LyricsEditor
@@ -732,6 +823,16 @@ export function SongPage() {
           })}
           </div>
         </div>
+      )}
+
+      {isMvDialogOpen && (
+        <BilibiliMvDialog
+          key={`${song.neteaseId}:${song.mv?.bvid ?? 'new'}:${song.mv?.page ?? 1}`}
+          mv={song.mv}
+          onClose={() => setIsMvDialogOpen(false)}
+          onSave={handleSaveMv}
+          onRemove={handleRemoveMv}
+        />
       )}
     </div>
   )

@@ -19,12 +19,15 @@ interface SongToolbarProps {
   hasAnyMediumConfidence: boolean
   ignoreAllMediumHints: boolean
   timingOffsetMs: number
+  hasMv: boolean
+  isMvMode: boolean
   regenerateFeedback: RegenerateFeedback | null
   onToggleFurigana: () => void
   onToggleRomaji: () => void
   onToggleTranslation: () => void
   onToggleKTV: () => void
   onTimingOffsetChange: (value: number) => void
+  onMvClick: () => void
   onStageChange: (stage: PracticeStage) => void
   onRegenerateFurigana: () => void
   onToggleIgnoreMediumHints: () => void
@@ -42,12 +45,15 @@ export function SongToolbar({
   hasAnyMediumConfidence,
   ignoreAllMediumHints,
   timingOffsetMs,
+  hasMv,
+  isMvMode,
   regenerateFeedback,
   onToggleFurigana,
   onToggleRomaji,
   onToggleTranslation,
   onToggleKTV,
   onTimingOffsetChange,
+  onMvClick,
   onStageChange,
   onRegenerateFurigana,
   onToggleIgnoreMediumHints,
@@ -58,12 +64,25 @@ export function SongToolbar({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
           <p className="mb-1 text-[11px] font-semibold text-text-muted">练习模式</p>
           <StageSelector currentStage={currentStage} onStageChange={onStageChange} />
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto sm:shrink-0">
+          <button
+            type="button"
+            onClick={onMvClick}
+            className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+              isMvMode
+                ? 'bg-[#fb7299] text-white'
+                : hasMv
+                  ? 'bg-[#fb7299]/10 text-[#d94f7c] hover:bg-[#fb7299]/15'
+                  : 'bg-surface-alt text-text-secondary hover:bg-surface-muted'
+            }`}
+          >
+            {isMvMode ? '退出 MV' : hasMv ? '进入 MV' : '指定 MV'}
+          </button>
           <button
             type="button"
             onClick={() => setShowDisplay((value) => !value)}

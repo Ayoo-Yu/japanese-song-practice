@@ -8,6 +8,11 @@ import path from 'path'
 import { createRequire } from 'module'
 import { neteaseQRLogin } from './src/lib/netease-qr-login'
 import { getAllowedAudioUrl } from './src/lib/proxy-security'
+import {
+  getBilibiliShortUrl,
+  isAllowedBilibiliRedirect,
+  parseBilibiliVideoInput,
+} from './src/lib/bilibili'
 
 const require = createRequire(import.meta.url)
 const kuromojiDictDir = path.join(path.dirname(require.resolve('kuromoji')), '..', 'dict')
@@ -157,6 +162,94 @@ function ttsProxy(): Plugin {
 
   return {
     name: 'tts-proxy',
+    configureServer(server) {
+      install(server.middlewares)
+    },
+    configurePreviewServer(server) {
+      install(server.middlewares)
+    },
+  }
+}
+
+function bilibiliLinkResolver(): Plugin {
+  const followRedirects = (target: URL, redirectCount = 0): Promise<URL> => {
+    const parsedTarget = parseBilibiliVideoInput(target.toString())
+    if (parsedTarget && target.hostname.toLowerCase() !== 'b23.tv') {
+      return Promise.resolve(new URL(parsedTarget.sourceUrl))
+    }
+    if (redirectCount >= 5) return Promise.reject(new Error('Too many redirects'))
+
+    return new Promise((resolve, reject) => {
+      const request = https.get(target, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; JapaneseSongPractice/1.0)',
+          Accept: 'text/html,*/*;q=0.8',
+        },
+      }, (response) => {
+        const redirectCodes = new Set([301, 302, 303, 307, 308])
+        const location = response.headers.location
+        response.resume()
+
+        if (!location || !redirectCodes.has(response.statusCode ?? 0)) {
+          reject(new Error('Short link did not redirect to a Bilibili video'))
+          return
+        }
+
+        let redirect: URL
+        try {
+          redirect = new URL(location, target)
+        } catch {
+          reject(new Error('Invalid redirect URL'))
+          return
+        }
+
+        if (!isAllowedBilibiliRedirect(redirect)) {
+          reject(new Error('Redirect host is not allowed'))
+          return
+        }
+        followRedirects(redirect, redirectCount + 1).then(resolve, reject)
+      })
+
+      request.setTimeout(10_000, () => request.destroy(new Error('Bilibili link timed out')))
+      request.on('error', reject)
+    })
+  }
+
+  const install = (middlewares: Connect.Server) => {
+    middlewares.use('/api/bilibili-resolve', (req, res) => {
+      if (req.method !== 'GET') {
+        res.statusCode = 405
+        res.setHeader('Allow', 'GET')
+        res.end('Method not allowed')
+        return
+      }
+
+      const value = new URL(req.url ?? '', 'http://localhost').searchParams.get('url')?.trim() ?? ''
+      const shortUrl = value.length <= 2_048 ? getBilibiliShortUrl(value) : null
+      if (!shortUrl) {
+        res.statusCode = 400
+        res.end('A valid HTTPS b23.tv URL is required')
+        return
+      }
+
+      followRedirects(shortUrl)
+        .then((resolvedUrl) => {
+          if (res.headersSent) return
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.setHeader('Cache-Control', 'private, max-age=300')
+          res.end(JSON.stringify({ url: resolvedUrl.toString() }))
+        })
+        .catch(() => {
+          if (res.headersSent) return
+          res.statusCode = 422
+          res.end('Unable to resolve this Bilibili short link')
+        })
+    })
+  }
+
+  return {
+    name: 'bilibili-link-resolver',
     configureServer(server) {
       install(server.middlewares)
     },
@@ -327,7 +420,16 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react(), tailwindcss(), healthCheck(), audioProxy(), ttsProxy(), kuromojiDictPlugin(), neteaseQRLogin()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      healthCheck(),
+      audioProxy(),
+      ttsProxy(),
+      bilibiliLinkResolver(),
+      kuromojiDictPlugin(),
+      neteaseQRLogin(),
+    ],
     server: {
       host: appHost,
       port: Number.isFinite(appPort) ? appPort : 4173,

@@ -11,8 +11,9 @@ export function MiniPlayer() {
   const playbackRate = usePlayerStore((s) => s.playbackRate)
   const audioSrc = usePlayerStore((s) => s.audioSrc)
   const audioError = usePlayerStore((s) => s.audioError)
+  const playbackSource = usePlayerStore((s) => s.playbackSource)
 
-  if (!nowPlaying) return null
+  if (!nowPlaying || playbackSource === 'bilibili') return null
 
   const progress = durationMs > 0 ? (currentTimeMs / durationMs) * 100 : 0
   const statusText = !audioSrc || audioError
