@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { listUserSongs, deleteSong } from '../services/song-service'
 import { listSavedLines, listSavedWords, removeSavedLine, removeSavedWord } from '../services/collections-service'
+import { listSongLearningProgress, type SongLearningProgress } from '../services/learning-service'
 import type { Song, SavedLine, SavedWord } from '../types'
 import { usePlayerStore } from '../stores/player-store'
 import { useSearchCache } from '../stores/search-cache-store'
@@ -18,6 +19,7 @@ export function LibraryPage() {
   const [songs, setSongs] = useState<Song[]>([])
   const [savedWords, setSavedWords] = useState<SavedWord[]>([])
   const [savedLines, setSavedLines] = useState<SavedLine[]>([])
+  const [learningProgress, setLearningProgress] = useState<Map<number, SongLearningProgress>>(new Map())
   const [managing, setManaging] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -43,6 +45,7 @@ export function LibraryPage() {
     setSongs(nextSongs)
     setSavedWords(nextWords)
     setSavedLines(nextLines)
+    setLearningProgress(new Map(listSongLearningProgress().map((item) => [item.neteaseId, item])))
   }
 
   useEffect(() => { void Promise.resolve().then(reload) }, [])
@@ -138,6 +141,7 @@ export function LibraryPage() {
       {tab === 'songs' ? (
         <SongsPanel
           songs={songs}
+          learningProgress={learningProgress}
           managing={managing}
           confirmId={confirmId}
           deletingId={deletingId}
@@ -173,6 +177,7 @@ export function LibraryPage() {
 
 function SongsPanel({
   songs,
+  learningProgress,
   managing,
   confirmId,
   deletingId,
@@ -180,6 +185,7 @@ function SongsPanel({
   onDelete,
 }: {
   songs: Song[]
+  learningProgress: Map<number, SongLearningProgress>
   managing: boolean
   confirmId: string | null
   deletingId: string | null
@@ -200,6 +206,10 @@ function SongsPanel({
     <div className="flex flex-col gap-3">
       {songs.map((song) => {
         const readiness = getSongReadiness(song)
+        const progress = learningProgress.get(song.neteaseId)
+        const accuracy = progress?.answerCount
+          ? Math.round((progress.correctCount / progress.answerCount) * 100)
+          : null
         return (
           <div key={song.id} className="relative">
             <Link
@@ -218,6 +228,10 @@ function SongsPanel({
                 </div>
                 <p className="truncate font-semibold text-text">{song.title}</p>
                 <p className="truncate text-sm text-text-secondary">{song.artist}</p>
+                <p className="mt-1 truncate text-xs text-text-muted">
+                  第 {progress?.currentStage ?? 1} 阶段
+                  {accuracy === null ? ' · 尚未测验' : ` · 累计正确率 ${accuracy}%`}
+                </p>
               </div>
               <span className="shrink-0 text-sm font-semibold text-accent">练唱</span>
             </Link>

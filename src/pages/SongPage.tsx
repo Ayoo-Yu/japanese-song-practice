@@ -16,6 +16,7 @@ import { extractColorsCached } from '../lib/color-extract'
 import type { ExtractedColors } from '../lib/color-extract'
 import { isCreditLineText } from '../lib/song-lines'
 import { listSavedLines, listSavedWords, toggleSavedLine } from '../services/collections-service'
+import { getSongLearningProgress, setSongLearningStage } from '../services/learning-service'
 import type { PracticeStage, Song } from '../types'
 import { getPracticeStageConfig } from '../lib/practice-stages'
 
@@ -34,6 +35,7 @@ export function SongPage() {
     Number.isNaN(neteaseId) ? null : neteaseId,
     isPreview
   )
+  const activeSongId = song?.neteaseId
   const currentTimeMs = usePlayerStore((s) => s.currentTimeMs)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const setPendingSeek = usePlayerStore((s) => s.setPendingSeek)
@@ -314,7 +316,25 @@ export function SongPage() {
     setShowTranslation(config.showTranslation)
     setShowKTV(config.showKTV)
     setDisplayCustomized(false)
-  }, [])
+    if (activeSongId) setSongLearningStage(activeSongId, stage)
+  }, [activeSongId])
+
+  useEffect(() => {
+    if (!activeSongId) return
+    let cancelled = false
+    Promise.resolve().then(() => {
+      if (cancelled) return
+      const stage = getSongLearningProgress(activeSongId).currentStage
+      const config = getPracticeStageConfig(stage)
+      setCurrentStage(stage)
+      setShowFurigana(config.furigana !== 'none')
+      setShowRomaji(config.showRomaji)
+      setShowTranslation(config.showTranslation)
+      setShowKTV(config.showKTV)
+      setDisplayCustomized(false)
+    })
+    return () => { cancelled = true }
+  }, [activeSongId])
 
   const jumpToLineAndPlay = useCallback((lineIndex: number) => {
     const calibration = calibrations[lineIndex]

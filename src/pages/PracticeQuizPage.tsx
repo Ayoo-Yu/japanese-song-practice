@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { getAnnotatedSong } from '../services/lyrics-service'
 import { buildQuizSession, parseQuizType } from '../services/quiz-service'
+import { getSongLearningProgress, getSuggestedStage, recordQuizAnswer } from '../services/learning-service'
 import { updateLyrics, updateFuriganaToken } from '../services/song-service'
 import { QuizCard } from '../components/practice/QuizCard'
 import { QuizProgress } from '../components/practice/QuizProgress'
@@ -124,6 +125,8 @@ export function PracticeQuizPage() {
   if (isFinished) {
     const total = session.questions.length
     const pct = Math.round((session.correctCount / total) * 100)
+    const progress = getSongLearningProgress(song.neteaseId)
+    const suggestedStage = getSuggestedStage(progress)
     const summary = pct >= 85
       ? '很顺，下一次可以试着关掉一点读音辅助。'
       : pct >= 60
@@ -139,6 +142,11 @@ export function PracticeQuizPage() {
           <p className="mb-8 text-text-secondary">
             顺口 {session.correctCount} 句 · 需要再练 {session.wrongCount} 句
           </p>
+          {suggestedStage !== progress.currentStage && (
+            <p className="mb-6 text-sm font-semibold text-accent">
+              根据累计正确率，建议下一次尝试第 {suggestedStage} 阶段。
+            </p>
+          )}
           <div className="flex flex-col justify-center gap-3 sm:flex-row">
             <Link
               to="/practice"
@@ -187,6 +195,7 @@ export function PracticeQuizPage() {
     setShowResult(true)
 
     const isCorrect = index === question.correctIndex
+    recordQuizAnswer(song.neteaseId, question, isCorrect)
     setSession((prev) =>
       prev
         ? {

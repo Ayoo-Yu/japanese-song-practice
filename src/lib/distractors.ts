@@ -11,8 +11,17 @@ export function generateDistractors(
   }
 
   const results = [...unique]
+  let attempts = 0
+  while (results.length < count && attempts < 50) {
+    const candidate = shuffleSyllables(correct)
+    if (candidate !== correct && !results.includes(candidate)) {
+      results.push(candidate)
+    }
+    attempts++
+  }
   while (results.length < count) {
-    results.push(shuffleSyllables(correct))
+    const candidate = `${correct}${results.length + 1}`
+    if (!results.includes(candidate)) results.push(candidate)
   }
   return results.slice(0, count)
 }

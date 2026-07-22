@@ -1,13 +1,15 @@
 import type { Song, FuriganaLine, FuriganaToken } from '../types'
 import { computeFuriganaForLine, FURIGANA_VERSION } from '../lib/furigana-service'
+import { shouldAnnotateJapaneseLyrics } from '../lib/lyrics-language'
 import { buildStageLyrics } from './lyrics-service'
 import { removeSavedItemsForSong } from './collections-service'
+import { removeSongLearningData } from './learning-service'
 
-const STORAGE_KEY = 'jpsong_songs'
+export const SONGS_STORAGE_KEY = 'jpsong_songs'
 
 function loadAll(): Song[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(SONGS_STORAGE_KEY)
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed as Song[] : []
@@ -17,7 +19,11 @@ function loadAll(): Song[] {
 }
 
 function saveAll(songs: Song[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(songs))
+  try {
+    localStorage.setItem(SONGS_STORAGE_KEY, JSON.stringify(songs))
+  } catch {
+    throw new Error('本地存储空间不足，歌曲未能保存。请先在设置中导出备份并清理不需要的数据。')
+  }
 }
 
 function generateId(): string {
@@ -89,6 +95,7 @@ export async function deleteSong(id: string): Promise<boolean> {
 
   saveAll(songs.filter((song) => song.id !== id))
   await removeSavedItemsForSong(target.neteaseId)
+  removeSongLearningData(target.neteaseId)
   return true
 }
 
@@ -116,17 +123,26 @@ export async function updateLyrics(
   // Rebuild romaji/translation maps
   const romajiMap = new Map(Object.entries(romajiLines).map(([k, v]) => [Number(k), v]))
   const translationMap = new Map(Object.entries(translationLines).map(([k, v]) => [Number(k), v]))
+  const annotateJapanese = shouldAnnotateJapaneseLyrics(lrcParsed, romajiMap.values())
 
   // Recompute furigana
   const furiganaData: FuriganaLine[] = []
-  for (let i = 0; i < lrcParsed.length; i++) {
-    const line = lrcParsed[i]
-    const romaji = romajiMap.get(line.timeMs) ?? ''
-    const tokens = await computeFuriganaForLine(line.text, romaji)
-    if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
+  if (annotateJapanese) {
+    for (let i = 0; i < lrcParsed.length; i++) {
+      const line = lrcParsed[i]
+      const romaji = romajiMap.get(line.timeMs) ?? ''
+      const tokens = await computeFuriganaForLine(line.text, romaji)
+      if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
+    }
   }
 
-  const stageLyrics = await buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
+  const stageLyrics = await buildStageLyrics(
+    lrcParsed,
+    romajiMap,
+    translationMap,
+    furiganaData,
+    annotateJapanese,
+  )
 
   const updated: Song = {
     ...song,
@@ -159,16 +175,25 @@ export async function regenerateFurigana(
   const lrcParsed = song.lrcParsed ?? []
   const romajiMap = new Map(Object.entries(song.romajiLines ?? {}).map(([k, v]) => [Number(k), v]))
   const translationMap = new Map(Object.entries(song.translationLines ?? {}).map(([k, v]) => [Number(k), v]))
+  const annotateJapanese = shouldAnnotateJapaneseLyrics(lrcParsed, romajiMap.values())
 
   const furiganaData: FuriganaLine[] = []
-  for (let i = 0; i < lrcParsed.length; i++) {
-    const line = lrcParsed[i]
-    const romaji = romajiMap.get(line.timeMs) ?? ''
-    const tokens = await computeFuriganaForLine(line.text, romaji)
-    if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
+  if (annotateJapanese) {
+    for (let i = 0; i < lrcParsed.length; i++) {
+      const line = lrcParsed[i]
+      const romaji = romajiMap.get(line.timeMs) ?? ''
+      const tokens = await computeFuriganaForLine(line.text, romaji)
+      if (tokens) furiganaData.push({ lineIndex: i, words: tokens })
+    }
   }
 
-  const stageLyrics = await buildStageLyrics(lrcParsed, romajiMap, translationMap, furiganaData)
+  const stageLyrics = await buildStageLyrics(
+    lrcParsed,
+    romajiMap,
+    translationMap,
+    furiganaData,
+    annotateJapanese,
+  )
   return saveSong({
     ...song,
     furiganaData: applyFuriganaOverrides(furiganaData, song.confirmedFuriganaTokenIds),

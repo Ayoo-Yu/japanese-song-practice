@@ -24,32 +24,66 @@ interface KuromojiGlobal {
 
 let tokenizerPromise: Promise<JapaneseTokenizer> | null = null
 let scriptLoadPromise: Promise<void> | null = null
+let tokenizerError: Error | null = null
+let tokenizerRetryAt = 0
+
+const TOKENIZER_BUILD_TIMEOUT_MS = 20_000
+const TOKENIZER_RETRY_DELAY_MS = 30_000
 
 export function getJapaneseTokenizer(): Promise<JapaneseTokenizer> {
+  if (!tokenizerPromise && tokenizerError && Date.now() < tokenizerRetryAt) {
+    return Promise.reject(tokenizerError)
+  }
+
   if (!tokenizerPromise) {
+    tokenizerError = null
     tokenizerPromise = ensureKuromojiLoaded().then(
       () =>
-        new Promise((resolve, reject) => {
+        new Promise<JapaneseTokenizer>((resolve, reject) => {
+          let settled = false
+          const fail = (error: Error) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeoutId)
+            tokenizerPromise = null
+            tokenizerError = error
+            tokenizerRetryAt = Date.now() + TOKENIZER_RETRY_DELAY_MS
+            reject(error)
+          }
+          const timeoutId = setTimeout(() => {
+            fail(new Error('Japanese tokenizer initialization timed out'))
+          }, TOKENIZER_BUILD_TIMEOUT_MS)
           const kuromoji = (globalThis as typeof globalThis & { kuromoji?: KuromojiGlobal }).kuromoji
           if (!kuromoji) {
-            reject(new Error('kuromoji browser bundle did not load'))
-            tokenizerPromise = null
+            fail(new Error('kuromoji browser bundle did not load'))
             return
           }
 
           kuromoji.builder({ dicPath: '/kuromoji-dict' }).build((err, tokenizer) => {
             if (err || !tokenizer) {
-              reject(err ?? new Error('Failed to initialize Japanese tokenizer'))
-              tokenizerPromise = null
+              fail(err ?? new Error('Failed to initialize Japanese tokenizer'))
               return
             }
+            if (settled) return
+            settled = true
+            clearTimeout(timeoutId)
+            tokenizerError = null
+            tokenizerRetryAt = 0
             resolve(tokenizer)
           })
         })
-    )
+    ).catch((error: unknown) => {
+      const normalized = error instanceof Error
+        ? error
+        : new Error('Failed to initialize Japanese tokenizer')
+      tokenizerPromise = null
+      tokenizerError = normalized
+      tokenizerRetryAt = Date.now() + TOKENIZER_RETRY_DELAY_MS
+      throw normalized
+    })
   }
 
-  return tokenizerPromise
+  return tokenizerPromise!
 }
 
 function ensureKuromojiLoaded(): Promise<void> {

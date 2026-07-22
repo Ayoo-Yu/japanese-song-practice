@@ -202,3 +202,26 @@ ruby rt {
 .ktv-highlight * {
   color: var(--ktv-highlight-color, var(--color-accent)) !important;
 }
+
+.ktv-highlight {
+  transition: clip-path 260ms linear;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-accent) 60%, white);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

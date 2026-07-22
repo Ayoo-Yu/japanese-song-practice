@@ -30,11 +30,13 @@ export function NetEaseLogin({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-lg p-6 max-w-md w-full shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" role="presentation">
+      <div className="bg-surface rounded-2xl p-6 max-w-md w-full shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="netease-login-title">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-text">网易云音乐登录</h3>
+          <h3 id="netease-login-title" className="text-lg font-bold text-text">网易云音乐登录</h3>
           <button
+            type="button"
+            aria-label="关闭登录窗口"
             onClick={onClose}
             className="text-text-secondary hover:text-text text-xl leading-none"
           >
@@ -45,9 +47,10 @@ export function NetEaseLogin({ onClose }: { onClose: () => void }) {
         {success ? (
           <div className="text-center py-6">
             <div className="text-4xl mb-3">&#10003;</div>
-            <p className="text-accent font-bold text-lg mb-2">登录成功!</p>
-            <p className="text-text-secondary text-sm mb-4">刷新页面后生效</p>
+            <p className="text-accent font-bold text-lg mb-2">凭据已保存</p>
+            <p className="text-text-secondary text-sm mb-4">刷新后会在获取音源时验证权限</p>
             <button
+              type="button"
               onClick={() => window.location.reload()}
               className="px-6 py-2 bg-accent text-white rounded-lg font-medium hover:opacity-90"
             >
@@ -88,16 +91,20 @@ export function NetEaseLogin({ onClose }: { onClose: () => void }) {
               </p>
             </div>
 
-            <textarea
-              value={cookie}
-              onChange={(e) => setCookie(e.target.value)}
-              placeholder="粘贴 MUSIC_U 的值..."
-              className="w-full h-20 px-3 py-2 border border-border rounded-lg text-sm bg-surface text-text resize-none focus:outline-none focus:border-accent"
-            />
+            <label className="block">
+              <span className="sr-only">MUSIC_U 值</span>
+              <textarea
+                value={cookie}
+                onChange={(e) => setCookie(e.target.value)}
+                placeholder="粘贴 MUSIC_U 的值..."
+                className="w-full h-20 px-3 py-2 border border-border rounded-lg text-sm bg-surface text-text resize-none focus:outline-none focus:border-accent"
+              />
+            </label>
 
             {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
 
             <button
+              type="button"
               onClick={handleSave}
               disabled={!cookie.trim() || saving}
               className="w-full mt-3 px-4 py-2.5 bg-accent text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-40"

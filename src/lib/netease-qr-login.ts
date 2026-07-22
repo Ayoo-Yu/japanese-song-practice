@@ -2,7 +2,7 @@ import forge from 'node-forge'
 import fs from 'fs'
 import path from 'path'
 import { createRequire } from 'module'
-import type { Plugin } from 'vite'
+import type { Connect, Plugin } from 'vite'
 
 const require = createRequire(import.meta.url)
 const CryptoJS = require('crypto-js')
@@ -49,14 +49,31 @@ function writeEnvCookie(cookieValue: string) {
   }
   const lines = content.split('\n').filter((l) => !l.startsWith('NETEASE_MUSIC_U='))
   lines.push(`NETEASE_MUSIC_U=${cookieValue}`)
-  fs.writeFileSync(envPath, lines.join('\n') + '\n')
+  fs.writeFileSync(envPath, lines.join('\n') + '\n', { mode: 0o600 })
+  fs.chmodSync(envPath, 0o600)
+  process.env.NETEASE_MUSIC_U = cookieValue
+}
+
+function isSafeMusicCookie(value: string): boolean {
+  return value.length >= 10 && value.length <= 4096 && /^[A-Za-z0-9._~+/%=-]+$/.test(value)
 }
 
 function getEnvCookie(): string {
+  const runtimeCookie = process.env.NETEASE_MUSIC_U?.trim()
+  if (runtimeCookie) return runtimeCookie
+
   const envPath = path.resolve(process.cwd(), '.env')
   if (!fs.existsSync(envPath)) return ''
   const content = fs.readFileSync(envPath, 'utf-8')
   return content.match(/^NETEASE_MUSIC_U=(.+)$/m)?.[1]?.trim() ?? ''
+}
+
+function credentialsAreWritable(): boolean {
+  const override = process.env.ALLOW_CREDENTIAL_WRITES?.trim().toLowerCase()
+  if (override) return override === 'true' || override === '1'
+
+  const host = process.env.HOST?.trim().toLowerCase()
+  return !host || host === '127.0.0.1' || host === 'localhost' || host === '::1'
 }
 
 export function neteaseQRLogin(): Plugin {
@@ -71,6 +88,8 @@ export function neteaseQRLogin(): Plugin {
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent':
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'X-Real-IP': '111.72.0.1',
         Referer: 'https://music.163.com/',
         Origin: 'https://music.163.com',
         ...(cookieJar ? { Cookie: cookieJar } : {}),
@@ -93,20 +112,41 @@ export function neteaseQRLogin(): Plugin {
     return res
   }
 
-  return {
-    name: 'netease-qr-login',
-    configureServer(server) {
-      server.middlewares.use('/api/qr-login', (req, res, next) => {
+  const handleLogin: Connect.NextHandleFunction = (req, res, next) => {
         const url = new URL(req.url ?? '/', 'http://localhost')
 
         if (url.pathname === '/status') {
           const cookie = getEnvCookie()
           res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify({ loggedIn: cookie.length > 10 }))
+          res.setHeader('Cache-Control', 'no-store')
+          res.end(JSON.stringify({
+            configured: isSafeMusicCookie(cookie),
+            writable: credentialsAreWritable(),
+          }))
+          return
+        }
+
+        if (
+          (url.pathname === '/key' || url.pathname === '/check' || url.pathname === '/save')
+          && !credentialsAreWritable()
+        ) {
+          res.statusCode = 403
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Cache-Control', 'no-store')
+          res.end(JSON.stringify({
+            ok: false,
+            error: '部署环境中的凭据由服务器管理员配置，不能从网页修改',
+          }))
           return
         }
 
         if (url.pathname === '/key') {
+          if (req.method !== 'GET') {
+            res.statusCode = 405
+            res.setHeader('Allow', 'GET')
+            res.end()
+            return
+          }
           postWeapi('https://music.163.com/weapi/login/qrcode/unikey', { type: 3 })
             .then(async (apiRes) => {
               const json = (await apiRes.json()) as { unikey?: string }
@@ -130,7 +170,7 @@ export function neteaseQRLogin(): Plugin {
 
         if (url.pathname === '/check') {
           const key = url.searchParams.get('key')
-          if (!key) {
+          if (req.method !== 'GET' || !key || !/^[A-Za-z0-9_-]{8,256}$/.test(key)) {
             res.statusCode = 400
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ error: 'Missing key parameter' }))
@@ -169,12 +209,32 @@ export function neteaseQRLogin(): Plugin {
         }
 
         if (url.pathname === '/save') {
+          if (req.method !== 'POST') {
+            res.statusCode = 405
+            res.setHeader('Allow', 'POST')
+            res.end()
+            return
+          }
           let body = ''
-          req.on('data', (chunk: Buffer) => { body += chunk.toString() })
+          let tooLarge = false
+          req.on('data', (chunk: Buffer) => {
+            if (tooLarge) return
+            body += chunk.toString()
+            if (Buffer.byteLength(body) > 8192) {
+              tooLarge = true
+              body = ''
+            }
+          })
           req.on('end', () => {
+            if (tooLarge) {
+              res.statusCode = 413
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ ok: false, error: '请求内容过大' }))
+              return
+            }
             try {
               const { cookie } = JSON.parse(body) as { cookie?: string }
-              if (!cookie || cookie.length < 10) {
+              if (!cookie || !isSafeMusicCookie(cookie)) {
                 res.statusCode = 400
                 res.setHeader('Content-Type', 'application/json')
                 res.end(JSON.stringify({ ok: false, error: 'Cookie 值无效' }))
@@ -194,7 +254,7 @@ export function neteaseQRLogin(): Plugin {
 
         if (url.pathname === '/song-url') {
           const id = url.searchParams.get('id')
-          if (!id) {
+          if (req.method !== 'GET' || !id || !/^\d{1,20}$/.test(id)) {
             res.statusCode = 400
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ error: 'Missing id' }))
@@ -252,7 +312,15 @@ export function neteaseQRLogin(): Plugin {
         }
 
         next()
-      })
+  }
+
+  return {
+    name: 'netease-qr-login',
+    configureServer(server) {
+      server.middlewares.use('/api/qr-login', handleLogin)
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use('/api/qr-login', handleLogin)
     },
   }
 }

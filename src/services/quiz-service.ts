@@ -39,13 +39,32 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+export function isTrustedFuriganaToken(token: {
+  isKanji: boolean
+  reading: string
+  confidence?: string
+  source?: string
+}): boolean {
+  return token.isKanji && !!token.reading && (
+    token.confidence === 'high' || token.source === 'user_confirmed'
+  )
+}
+
+function isTrustedRomajiLine(song: Song, lineIndex: number): boolean {
+  const furiganaLine = song.furiganaData?.find((line) => line.lineIndex === lineIndex)
+  if (!furiganaLine) return false
+  return furiganaLine.words
+    .filter((token) => token.isKanji)
+    .every((token) => isTrustedFuriganaToken(token))
+}
+
 export function extractFuriganaPool(song: Song): string[] {
   const readings: string[] = []
   for (const fl of song.furiganaData ?? []) {
     const sourceLine = song.lrcParsed?.[fl.lineIndex]
     if (sourceLine && isCreditLineText(sourceLine.text)) continue
     for (const w of fl.words) {
-      if (w.isKanji && w.reading) readings.push(w.reading)
+      if (isTrustedFuriganaToken(w)) readings.push(w.reading)
     }
   }
   return readings
@@ -98,7 +117,7 @@ function buildFuriganaQuestion(
   const fl = song.furiganaData?.find((f) => f.lineIndex === lineIndex)
   if (!line || !fl || isCreditLineText(line.text)) return null
   const token = fl.words[tokenIdx]
-  if (!token || !token.isKanji || !token.reading) return null
+  if (!token || !isTrustedFuriganaToken(token)) return null
 
   const wrong = generateDistractors(token.reading, distractorPool)
   const choices = shuffle([token.reading, ...wrong])
@@ -152,7 +171,10 @@ export function buildQuizSession(
         .map((_, i) => i)
         .filter((i) => {
           const line = song.lrcParsed![i]
-          return line.text.trim() && !isCreditLineText(line.text) && song.romajiLines?.[line.timeMs]?.trim()
+          return line.text.trim()
+            && !isCreditLineText(line.text)
+            && song.romajiLines?.[line.timeMs]?.trim()
+            && isTrustedRomajiLine(song, i)
         }),
     )
     for (const i of candidates) {
@@ -186,7 +208,7 @@ export function buildQuizSession(
       if (line && isCreditLineText(line.text)) continue
       const kanjiTokens = fl.words
         .map((w, ti) => ({ w, ti }))
-        .filter(({ w }) => w.isKanji && w.reading)
+        .filter(({ w }) => isTrustedFuriganaToken(w))
       if (kanjiTokens.length > 0) {
         const pick = kanjiTokens[Math.floor(Math.random() * kanjiTokens.length)]
         candidates.push({ lineIdx: fl.lineIndex, tokenIdx: pick.ti })

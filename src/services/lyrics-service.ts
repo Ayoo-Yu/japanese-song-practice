@@ -1,6 +1,7 @@
 import { getLyric, getSongUrl, getSongDetail } from '../lib/netease'
 import { parseLrc } from '../lib/lrc-parser'
-import { computeDisplayRomaji, computeFuriganaForLine, tokensToHtml, FURIGANA_VERSION } from '../lib/furigana-service'
+import { computeDisplayRomaji, computeFuriganaForLine, tokensToDisplayRomaji, tokensToHtml, FURIGANA_VERSION } from '../lib/furigana-service'
+import { shouldAnnotateJapaneseLyrics } from '../lib/lyrics-language'
 import { getSongByNeteaseId, saveSong, updateAudioUrl } from './song-service'
 import type { Song, StageLine, ParsedLine, FuriganaLine } from '../types'
 
@@ -9,6 +10,7 @@ export async function buildStageLyrics(
   romajiMap: Map<number, string>,
   translationMap: Map<number, string>,
   furiganaData?: FuriganaLine[],
+  annotateJapanese = true,
 ): Promise<Record<number, StageLine[]>> {
   const furiganaByIndex = new Map<number, FuriganaLine>()
   if (furiganaData) {
@@ -19,7 +21,12 @@ export async function buildStageLyrics(
   for (let idx = 0; idx < parsedLines.length; idx++) {
     const line = parsedLines[idx]
     const sourceRomaji = romajiMap.get(line.timeMs) ?? ''
-    const displayRomaji = await computeDisplayRomaji(line.text, sourceRomaji)
+    const words = furiganaByIndex.get(idx)?.words
+    const displayRomaji = annotateJapanese
+      ? words?.length
+        ? tokensToDisplayRomaji(words)
+        : await computeDisplayRomaji(line.text, sourceRomaji)
+      : sourceRomaji.trim()
     displayRomajiByTime.set(line.timeMs, displayRomaji)
   }
 
@@ -59,12 +66,29 @@ export async function buildStageLyrics(
 
 export async function getAnnotatedSong(neteaseId: number, preview = false): Promise<Song> {
   const cached = await getSongByNeteaseId(neteaseId)
-  const hasGoodCache = cached?.stageLyrics
-    && Object.keys(cached.stageLyrics).length === 5
-    && cached.stageLyrics[1]?.some((l) => l.romaji)
-    && cached.stageLyrics[3]?.some((l) => l.translation && l.translation.endsWith('…'))
-    && cached.furiganaData && cached.furiganaData.length > 0
+  const cachedNeedsJapaneseAnnotations = cached
+    ? shouldAnnotateJapaneseLyrics(
+        cached.lrcParsed ?? [],
+        Object.values(cached.romajiLines ?? {}),
+      )
+    : true
+  const cachedLineCount = cached?.lrcParsed?.length ?? 0
+  const cachedStageLyrics = cached?.stageLyrics
+  const hasCompleteStageLyrics = cachedStageLyrics
+    && cachedLineCount > 0
+    && [1, 2, 3, 4, 5].every(
+      (stage) => cachedStageLyrics[stage]?.length === cachedLineCount,
+    )
+  const hasGoodCache = hasCompleteStageLyrics
     && cached.furiganaVersion === FURIGANA_VERSION
+    && (
+      !cachedNeedsJapaneseAnnotations
+      || (
+        cachedStageLyrics[1]?.some((l) => l.romaji)
+        && cached.furiganaData
+        && cached.furiganaData.length > 0
+      )
+    )
   if (hasGoodCache) {
     if (!cached.title || !cached.artist) {
       const detail = await getSongDetail(neteaseId)
@@ -91,19 +115,28 @@ export async function getAnnotatedSong(neteaseId: number, preview = false): Prom
   const romajiMap = romalrc?.lyric
     ? new Map(parseLrc(romalrc.lyric).map((l) => [l.timeMs, l.text]))
     : new Map<number, string>()
+  const annotateJapanese = shouldAnnotateJapaneseLyrics(parsedLines, romajiMap.values())
 
   // Compute furigana for each line
   const furiganaData: FuriganaLine[] = []
-  for (let i = 0; i < parsedLines.length; i++) {
-    const line = parsedLines[i]
-    const romaji = romajiMap.get(line.timeMs) ?? ''
-    const tokens = await computeFuriganaForLine(line.text, romaji)
-    if (tokens) {
-      furiganaData.push({ lineIndex: i, words: tokens })
+  if (annotateJapanese) {
+    for (let i = 0; i < parsedLines.length; i++) {
+      const line = parsedLines[i]
+      const romaji = romajiMap.get(line.timeMs) ?? ''
+      const tokens = await computeFuriganaForLine(line.text, romaji)
+      if (tokens) {
+        furiganaData.push({ lineIndex: i, words: tokens })
+      }
     }
   }
 
-  const stageLyrics = await buildStageLyrics(parsedLines, romajiMap, translationMap, furiganaData)
+  const stageLyrics = await buildStageLyrics(
+    parsedLines,
+    romajiMap,
+    translationMap,
+    furiganaData,
+    annotateJapanese,
+  )
 
   // Build per-line source maps for editing
   const romajiLines: Record<number, string> = {}
