@@ -142,5 +142,5 @@ export function GlobalAudio() {
     }
   }, [currentTimeMs, loopRange, isPlaying, setCurrentTime])
 
-  return <audio ref={audioRef} src={audioSrc} crossOrigin="anonymous" preload="auto" />
+  return <audio ref={audioRef} src={audioSrc} preload="auto" />
 }
