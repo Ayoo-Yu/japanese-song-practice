@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { usePlayerStore } from '../../stores/player-store'
+import { getAudioUrlCandidates } from '../../lib/proxy-security'
 
 export function GlobalAudio() {
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -56,6 +57,22 @@ export function GlobalAudio() {
     if (!audio) return
     const handleEnded = () => setPlaying(false)
     const handleError = () => {
+      const candidates = audioSrc ? getAudioUrlCandidates(audioSrc) : []
+      const currentSrc = audio.currentSrc || audio.src
+      const currentIndex = candidates.indexOf(currentSrc)
+      const fallbackUrl = candidates[currentIndex >= 0 ? currentIndex + 1 : 0]
+      if (fallbackUrl && fallbackUrl !== currentSrc) {
+        audio.src = fallbackUrl
+        audio.load()
+        if (usePlayerStore.getState().isPlaying) {
+          void audio.play().catch(() => {
+            // A subsequent media error will try the next CDN or show the
+            // final error after every candidate has failed.
+          })
+        }
+        return
+      }
+
       const mediaError = audio.error
       const message = mediaError?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
         ? '浏览器无法读取这个音源，可能是链接已过期或格式不受支持。'
@@ -79,7 +96,7 @@ export function GlobalAudio() {
       audio.removeEventListener('ended', handleEnded)
       audio.removeEventListener('error', handleError)
     }
-  }, [onLoadedMetadata, setAudioError, setPlaying, syncCurrentTime])
+  }, [audioSrc, onLoadedMetadata, setAudioError, setPlaying, syncCurrentTime])
 
   // Play/pause
   useEffect(() => {
