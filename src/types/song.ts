@@ -20,8 +20,12 @@ export interface Song {
   translationLines?: Record<number, string>
   translation?: string
   furiganaVersion?: number
+  // Whole-song lyric timing adjustment. Positive values show lyrics later.
+  lyricsOffsetMs?: number
   // Per-line KTV gradient timing overrides, keyed by line index
   calibrations?: Record<number, { startMs: number; endMs: number }>
+  // User-confirmed sung readings keyed by `${lineIndex}:${tokenIndex}`.
+  furiganaOverrides?: Record<string, string>
   ignoredMediumConfidenceLineIndexes?: number[]
   confirmedFuriganaTokenIds?: string[]
   ignoreAllMediumConfidenceHints?: boolean

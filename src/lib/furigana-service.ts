@@ -4,12 +4,24 @@ import { getJapaneseTokenizer } from './japanese-tokenizer'
 import type { JapaneseToken } from './japanese-tokenizer'
 import type { FuriganaToken } from '../types'
 
-export const FURIGANA_VERSION = 11
+export const FURIGANA_VERSION = 12
 
 const PHRASE_READING_OVERRIDES: Array<{
   surface: string
   tokens: Array<{ surface: string; reading: string }>
 }> = [
+  {
+    surface: '１人',
+    tokens: [
+      { surface: '１人', reading: 'ひとり' },
+    ],
+  },
+  {
+    surface: '1人',
+    tokens: [
+      { surface: '1人', reading: 'ひとり' },
+    ],
+  },
   {
     surface: '米津玄師',
     tokens: [

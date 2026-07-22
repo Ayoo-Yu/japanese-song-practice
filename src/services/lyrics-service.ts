@@ -1,6 +1,7 @@
 import { getLyric, getSongUrl, getSongDetail } from '../lib/netease'
 import { parseLrc } from '../lib/lrc-parser'
 import { computeDisplayRomaji, computeFuriganaForLine, tokensToDisplayRomaji, tokensToHtml, FURIGANA_VERSION } from '../lib/furigana-service'
+import { applyFuriganaOverrides } from '../lib/furigana-overrides'
 import { shouldAnnotateJapaneseLyrics } from '../lib/lyrics-language'
 import { getSongByNeteaseId, saveSong, updateAudioUrl } from './song-service'
 import type { Song, StageLine, ParsedLine, FuriganaLine } from '../types'
@@ -130,11 +131,16 @@ export async function getAnnotatedSong(neteaseId: number, preview = false): Prom
     }
   }
 
+  const resolvedFuriganaData = applyFuriganaOverrides(
+    furiganaData,
+    cached?.confirmedFuriganaTokenIds,
+    cached?.furiganaOverrides,
+  )
   const stageLyrics = await buildStageLyrics(
     parsedLines,
     romajiMap,
     translationMap,
-    furiganaData,
+    resolvedFuriganaData,
     annotateJapanese,
   )
 
@@ -178,7 +184,7 @@ export async function getAnnotatedSong(neteaseId: number, preview = false): Prom
     lrcRaw,
     lrcParsed: parsedLines,
     stageLyrics,
-    furiganaData,
+    furiganaData: resolvedFuriganaData,
     romajiLines,
     translationLines,
     translation: parsedLines.map((l) => translationMap.get(l.timeMs) ?? '').join('\n'),

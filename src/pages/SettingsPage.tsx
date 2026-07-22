@@ -227,7 +227,7 @@ export function SettingsPage() {
         <div>
           <h3 className="font-semibold text-text">数据备份</h3>
           <p className="text-sm text-text-secondary mt-1">
-            数据目前保存在这个浏览器中。定期导出可避免清理浏览器数据或更换设备后丢失。
+            曲库和学习记录目前只保存在这个浏览器中，不会自动同步到另一台电脑。换设备前请导出 JSON，再在新设备导入。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -39,6 +39,20 @@ export async function toggleSavedWord(word: Omit<SavedWord, 'savedAt'>): Promise
   return true
 }
 
+export async function replaceSavedWord(
+  previousId: string,
+  word: Omit<SavedWord, 'savedAt'>,
+): Promise<boolean> {
+  const items = load<SavedWord>(SAVED_WORDS_STORAGE_KEY)
+  const previous = items.find((item) => item.id === previousId)
+  if (!previous) return false
+
+  const next = items.filter((item) => item.id !== previousId && item.id !== word.id)
+  next.push({ ...word, savedAt: previous.savedAt })
+  save(SAVED_WORDS_STORAGE_KEY, next)
+  return true
+}
+
 export async function toggleSavedLine(line: Omit<SavedLine, 'savedAt'>): Promise<boolean> {
   const items = load<SavedLine>(SAVED_LINES_STORAGE_KEY)
   const existingIndex = items.findIndex((item) => item.id === line.id)

@@ -1,6 +1,6 @@
-import { memo, type Dispatch, type SetStateAction } from 'react'
-import { confirmFuriganaToken, ignoreMediumConfidenceLine } from '../../services/song-service'
-import { toggleSavedLine, toggleSavedWord } from '../../services/collections-service'
+import { memo, useState, type Dispatch, type SetStateAction } from 'react'
+import { confirmFuriganaToken, ensureSongPersisted, ignoreMediumConfidenceLine, updateFuriganaToken } from '../../services/song-service'
+import { replaceSavedWord, toggleSavedLine, toggleSavedWord } from '../../services/collections-service'
 import { FuriganaText } from './FuriganaText'
 import { KTVLine } from './KTVLine'
 import { RomajiEditPanel } from './RomajiEditPanel'
@@ -237,8 +237,24 @@ export const LyricsLineItem = memo(function LyricsLineItem({
                   {getConfidenceDescription(lineHint)}
                 </p>
                 <p className="mt-1 text-sm leading-6 text-slate-300">
-                  {lineHint.saved ? '已加入生词本，后面可以在曲库页继续整理。' : '还没有加入生词本，再点一次这个词可以取消收藏。'}
+                  {lineHint.saved ? '已加入生词本，后面可以在曲库页继续整理。' : '已从生词本移除；再次点击歌词中的这个词可以重新收藏。'}
                 </p>
+                {lineHint.tokenIndex !== undefined && (
+                  <ReadingCorrection
+                    key={`${i}:${lineHint.tokenIndex}:${lineHint.surface}`}
+                    song={song}
+                    line={line}
+                    lineIndex={i}
+                    hint={lineHint}
+                    isPreview={isPreview}
+                    isEditing={isEditing}
+                    savedWordIds={savedWordIds}
+                    setSong={setSong}
+                    setEditSong={setEditSong}
+                    setSavedWordIds={setSavedWordIds}
+                    setFuriganaHint={setFuriganaHint}
+                  />
+                )}
                 <div className="mt-3">
                   {isEditingRomaji && romajiEdit ? (
                     <RomajiEditPanel
@@ -336,6 +352,142 @@ export const LyricsLineItem = memo(function LyricsLineItem({
     </div>
   )
 })
+
+function ReadingCorrection({
+  song,
+  line,
+  lineIndex,
+  hint,
+  isPreview,
+  isEditing,
+  savedWordIds,
+  setSong,
+  setEditSong,
+  setSavedWordIds,
+  setFuriganaHint,
+}: {
+  song: Song
+  line: LyricsStageLine
+  lineIndex: number
+  hint: FuriganaHint
+  isPreview: boolean
+  isEditing: boolean
+  savedWordIds: Set<string>
+  setSong: Dispatch<SetStateAction<Song | null>>
+  setEditSong: Dispatch<SetStateAction<Song | null>>
+  setSavedWordIds: Dispatch<SetStateAction<Set<string>>>
+  setFuriganaHint: Dispatch<SetStateAction<FuriganaHint | null>>
+}) {
+  const [value, setValue] = useState(hint.reading)
+  const [saving, setSaving] = useState(false)
+  const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+
+  const handleSave = async () => {
+    const reading = value.trim()
+    const tokenIndex = hint.tokenIndex
+    if (!reading || tokenIndex === undefined) {
+      setFeedback({ tone: 'error', text: '请输入听到的平假名读法。' })
+      return
+    }
+
+    setSaving(true)
+    setFeedback(null)
+    try {
+      const persistedSong = isPreview ? await ensureSongPersisted(song) : song
+      const updated = await updateFuriganaToken(
+        persistedSong.neteaseId,
+        lineIndex,
+        tokenIndex,
+        reading,
+      )
+      if (!updated) throw new Error('请输入平假名、片假名或罗马音')
+
+      const savedReading = updated.furiganaData
+        ?.find((item) => item.lineIndex === lineIndex)
+        ?.words[tokenIndex]?.reading ?? reading
+      const previousWordId = `${song.neteaseId}:${lineIndex}:${hint.surface}:${hint.reading}`
+      const nextWordId = `${song.neteaseId}:${lineIndex}:${hint.surface}:${savedReading}`
+
+      if (hint.saved && previousWordId !== nextWordId && savedWordIds.has(previousWordId)) {
+        const replaced = await replaceSavedWord(previousWordId, {
+          id: nextWordId,
+          neteaseId: song.neteaseId,
+          songTitle: song.title,
+          artist: song.artist,
+          lineIndex,
+          lineText: line.original,
+          surface: hint.surface,
+          reading: savedReading,
+        })
+        if (replaced) {
+          setSavedWordIds((current) => {
+            const next = new Set(current)
+            next.delete(previousWordId)
+            next.add(nextWordId)
+            return next
+          })
+        }
+      }
+
+      setSong(updated)
+      if (isEditing) setEditSong(updated)
+      setFuriganaHint((current) => current && current.lineIndex === lineIndex
+        ? {
+            ...current,
+            reading: savedReading,
+            confidence: 'high',
+            source: 'user_confirmed',
+          }
+        : current)
+      setValue(savedReading)
+      setFeedback({ tone: 'success', text: '已按实际唱法保存；以后重算注音也会保留。' })
+    } catch (error) {
+      setFeedback({
+        tone: 'error',
+        text: error instanceof Error ? `读音保存失败：${error.message}` : '读音保存失败，请重试。',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-xl bg-slate-950/35 p-3 ring-1 ring-white/8">
+      <label className="block text-[11px] font-medium text-slate-300">
+        实际唱法（平假名）
+        <input
+          type="text"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onClick={(event) => event.stopPropagation()}
+          className="mt-2 w-full rounded-lg border border-slate-500 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-400"
+          placeholder="例如：そら"
+        />
+      </label>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={saving || value.trim() === hint.reading}
+          onClick={(event) => {
+            event.stopPropagation()
+            void handleSave()
+          }}
+          className="rounded-full bg-cyan-400 px-3 py-1.5 text-xs font-semibold text-slate-950 disabled:opacity-50"
+        >
+          {saving ? '保存中…' : '按实际唱法保存'}
+        </button>
+        <span className="text-[11px] leading-5 text-slate-400">
+          歌词中的特殊读法、吞音和名字读法不能只靠词典判断。
+        </span>
+      </div>
+      {feedback && (
+        <p className={`mt-2 text-[11px] ${feedback.tone === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>
+          {feedback.text}
+        </p>
+      )}
+    </div>
+  )
+}
 
 function getConfidenceDescription(hint: FuriganaHint): string {
   if (hint.source === 'romaji_fallback') {
