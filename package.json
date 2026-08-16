@@ -9,11 +9,14 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p tsconfig.worker.json && vite build",
     "lint": "eslint .",
     "test": "vitest run",
     "preview": "vite preview",
-    "start": "vite preview"
+    "start": "vite preview",
+    "cf:dev": "pnpm build && wrangler dev",
+    "cf:deploy": "pnpm build && wrangler deploy",
+    "cf:types": "wrangler types"
   },
   "dependencies": {
     "kuromoji": "^0.1.2",
@@ -41,6 +44,7 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.9",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.123.0"
   }
 }

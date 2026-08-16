@@ -73,15 +73,24 @@ pnpm test         # Vitest 回归测试
 pnpm lint         # ESLint 检查
 pnpm exec tsc -b  # TypeScript 类型检查
 pnpm preview      # 本地预览生产构建（包含 API 中间件）
+pnpm cf:dev       # 本地运行 Cloudflare Worker 与静态资源
+pnpm cf:deploy    # 构建并部署到 Cloudflare Workers
 ```
 
 ## 数据与部署
 
 歌曲、收藏、学习进度和外观设置默认保存在浏览器 `localStorage`。更换浏览器、清理站点数据或迁移设备前，请先在设置页导出 JSON 备份。
 
-`pnpm preview` 会运行项目所需的网易云、音频、TTS 和登录中间件。若只把 `dist/` 上传到纯静态托管，页面能打开，但这些服务端 API 不会存在；正式部署时需要保留 Node/Vite 服务，或把对应 `/api/*` 路由迁移到自己的后端。
+`pnpm preview` 会运行项目所需的网易云、音频、TTS 和登录中间件。若只把 `dist/` 上传到纯静态托管，页面能打开，但这些服务端 API 不会存在。
 
-仓库内置了 Railway 配置和 Dockerfile。公开部署时，网易云凭据默认只能通过托管平台的 `NETEASE_MUSIC_U` 环境变量配置，网页不会允许访客覆盖它。部署健康检查地址为 `/api/health`。
+仓库内置两种完整部署方式：Cloudflare Workers 使用 `wrangler.jsonc` 和 `worker/`，Node 容器使用 `Dockerfile` 与 `railway.json`。Cloudflare 免费部署流程：
+
+```bash
+pnpm exec wrangler login
+pnpm cf:deploy
+```
+
+如需会员音源，在 Cloudflare 中运行 `pnpm exec wrangler secret put NETEASE_MUSIC_U` 添加加密密钥；不要把 Cookie 写入仓库。公开部署不会允许访客从网页覆盖服务器凭据。健康检查地址为 `/api/health`。
 
 ## 项目结构
 
