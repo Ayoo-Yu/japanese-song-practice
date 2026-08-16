@@ -362,6 +362,9 @@ function kuromojiDictPlugin(): Plugin {
     },
     generateBundle() {
       for (const filename of fs.readdirSync(kuromojiDictDir)) {
+        // Cloudflare's temporary deployment flow caps uploaded assets at 5 MiB.
+        // The Worker serves this byte-identical file from the official npm CDN.
+        if (filename === 'tid_pos.dat.gz') continue
         const filePath = path.join(kuromojiDictDir, filename)
         this.emitFile({
           type: 'asset',

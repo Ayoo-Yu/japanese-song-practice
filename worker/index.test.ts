@@ -26,6 +26,16 @@ describe('Cloudflare worker', () => {
     await expect(response.text()).resolves.toBe('asset response')
   })
 
+  it('protects the externally hosted dictionary route from writes', async () => {
+    const response = await worker.fetch(
+      new Request('https://example.com/kuromoji-dict/tid_pos.dat.gz', { method: 'POST' }),
+      env(),
+    )
+
+    expect(response.status).toBe(405)
+    expect(response.headers.get('allow')).toBe('GET, HEAD')
+  })
+
   it('reports whether a server-managed NetEase cookie exists', async () => {
     const missing = await worker.fetch(
       new Request('https://example.com/api/qr-login/status'),

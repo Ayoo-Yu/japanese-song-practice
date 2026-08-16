@@ -21,6 +21,8 @@ const RSA_MODULUS = BigInt(
 const RSA_EXPONENT = 0x10001n
 const NETEASE_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+const KUROMOJI_LARGE_DICTIONARY_URL =
+  'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/tid_pos.dat.gz'
 
 const worker = {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
@@ -28,6 +30,9 @@ const worker = {
 
     try {
       if (url.pathname === '/api/health') return handleHealth(request)
+      if (url.pathname === '/kuromoji-dict/tid_pos.dat.gz') {
+        return await handleLargeKuromojiDictionary(request)
+      }
       if (url.pathname === '/api/audio-proxy') return await handleAudioProxy(request, url)
       if (url.pathname === '/api/tts') return await handleTts(request, url)
       if (url.pathname === '/api/bilibili-resolve') return await handleBilibiliResolve(request, url)
@@ -42,6 +47,26 @@ const worker = {
       return jsonResponse({ error: 'Upstream service is temporarily unavailable' }, 502)
     }
   },
+}
+
+async function handleLargeKuromojiDictionary(request: Request): Promise<Response> {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return methodNotAllowed('GET, HEAD')
+  }
+
+  const upstream = await fetch(KUROMOJI_LARGE_DICTIONARY_URL, {
+    method: request.method,
+    headers: { Accept: 'application/gzip, application/octet-stream' },
+  })
+  if (!upstream.ok) return textResponse('Japanese dictionary is temporarily unavailable', 502)
+
+  const headers = copyHeaders(upstream.headers, ['content-length', 'etag', 'last-modified'])
+  headers.set('Content-Type', 'application/octet-stream')
+  headers.set('Cache-Control', 'public, max-age=604800, immutable')
+  return new Response(request.method === 'HEAD' ? null : upstream.body, {
+    status: 200,
+    headers,
+  })
 }
 
 export default worker

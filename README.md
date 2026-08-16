@@ -92,6 +92,8 @@ pnpm cf:deploy
 
 如需会员音源，在 Cloudflare 中运行 `pnpm exec wrangler secret put NETEASE_MUSIC_U` 添加加密密钥；不要把 Cookie 写入仓库。公开部署不会允许访客从网页覆盖服务器凭据。健康检查地址为 `/api/health`。
 
+为兼容 Cloudflare 首次部署的单文件大小限制，最大的 kuromoji 词典文件由 Worker 从 jsDelivr 的同版本 npm 包按需转发；构建时会校验其余词典并随站点发布。
+
 ## 项目结构
 
 ```
