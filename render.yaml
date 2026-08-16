@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: japanese-song-practice
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: codex/railway-deploy
+    autoDeployTrigger: commit
+    healthCheckPath: /api/health

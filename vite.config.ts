@@ -403,6 +403,7 @@ export default defineConfig(({ mode }) => {
     'healthcheck.railway.app',
     '.up.railway.app',
     '.railway.internal',
+    '.onrender.com',
   ]
   const apiProxy: Record<string, ProxyOptions> = {
     '/api/netease': {
